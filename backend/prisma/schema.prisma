@@ -1,0 +1,87 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// Modelo para usuarios
+model Usuario {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  nombre    String
+  creditos  Int      @default(2000)
+  orden     Int      @default(0)
+  salioDePuja Boolean @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relaciones
+  pujas     Puja[]
+  itemsGanados Item[] @relation("UsuarioGanador")
+}
+
+// Modelo para jugadores (items de subasta)
+model Item {
+  id          Int      @id @default(autoincrement())
+  rapidApiId  Int      @unique // ID de la API de RapidAPI
+  nombre      String
+  fechaNacimiento DateTime?
+  nacionalidad String?
+  peso        String?
+  altura      String?
+  lesionado   Boolean  @default(false)
+  fotoUrl     String?
+  equipo      String
+  posicion    String? // PORTERO, DEFENSA, MEDIO, DELANTERO
+  subastado   Boolean  @default(false)
+  precioSalida Int     @default(5)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relaciones
+  pujas       Puja[]
+  ganadorId   Int?
+  ganador     Usuario? @relation("UsuarioGanador", fields: [ganadorId], references: [id])
+  estadoSubasta EstadoSubasta? @relation("ItemActual")
+}
+
+// Modelo para pujas
+model Puja {
+  id        Int      @id @default(autoincrement())
+  monto     Int
+  itemId    Int
+  usuarioId Int
+  createdAt DateTime @default(now())
+
+  // Relaciones
+  item      Item     @relation(fields: [itemId], references: [id])
+  usuario   Usuario  @relation(fields: [usuarioId], references: [id])
+}
+
+// Modelo para configuración global
+model Configuracion {
+  id    Int    @id @default(autoincrement())
+  clave String @unique
+  valor String
+  descripcion String? // Descripción opcional del parámetro
+}
+
+// Modelo para el estado de la subasta
+model EstadoSubasta {
+  id            Int      @id @default(autoincrement())
+  itemActualId  Int?     @unique
+  subastaActiva Boolean  @default(false)
+  turnoActual   Int      @default(1)
+  tiempoRestante Int     @default(30)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relaciones
+  itemActual    Item?    @relation("ItemActual", fields: [itemActualId], references: [id])
+}
