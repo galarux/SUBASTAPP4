@@ -55,7 +55,7 @@ async function seedData() {
         update: {},
         create: {
           rapidApiId: 1001,
-          nombre: 'Lionel Messi',
+          nombre: 'Lionel ',
           equipo: 'Inter Miami',
           posicion: 'DELANTERO',
           nacionalidad: 'Argentina',

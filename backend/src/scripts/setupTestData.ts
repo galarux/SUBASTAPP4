@@ -42,7 +42,7 @@ async function setupTestData() {
     await prisma.estadoSubasta.deleteMany({});
     await prisma.puja.deleteMany({});
 
-    // 4. Seleccionar el primer item (Messi)
+    // 4. Seleccionar el primer item 
     const itemToSelect = items[0];
     console.log(`\n🎯 Seleccionando item: ${itemToSelect.nombre}`);
 

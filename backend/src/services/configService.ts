@@ -55,9 +55,15 @@ export class ConfigService {
   // Obtener todas las configuraciones
   static async getAllConfigs(): Promise<Configuracion[]> {
     try {
-      return await prisma.configuracion.findMany({
+      const configs = await prisma.configuracion.findMany({
         orderBy: { clave: 'asc' }
       });
+      
+      // Convertir null a undefined para compatibilidad con TypeScript
+      return configs.map(config => ({
+        ...config,
+        descripcion: config.descripcion ?? undefined
+      }));
     } catch (error) {
       console.error('Error al obtener configuraciones:', error);
       return [];

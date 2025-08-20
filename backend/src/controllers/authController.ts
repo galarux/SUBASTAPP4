@@ -17,21 +17,19 @@ export const authController = {
       }
 
       // Buscar usuario por email
-      let usuario = await prisma.usuario.findUnique({
+      const usuario = await prisma.usuario.findUnique({
         where: { email }
       });
 
-      // Si no existe, crear uno nuevo para pruebas
+      // Si no existe, devolver error
       if (!usuario) {
-        usuario = await prisma.usuario.create({
-          data: {
-            email,
-            nombre: email.split('@')[0], // Usar parte del email como nombre
-            creditos: 2000,
-            orden: 1 // Por defecto
-          }
+        return res.status(401).json({
+          success: false,
+          error: 'Email no registrado. Contacta al administrador para registrarte.'
         });
       }
+
+      console.log('✅ Login exitoso para usuario:', usuario.email);
 
       res.json({
         success: true,
@@ -78,8 +76,12 @@ export const authController = {
         }
       });
 
-      // Determinar el turno actual (por ahora, el usuario con orden 1)
-      const turnoActual = 1; // Esto debería venir de una configuración global
+      // Obtener el turno actual desde la base de datos
+      const estadoSubasta = await prisma.estadoSubasta.findFirst({
+        where: { id: 1 }
+      });
+
+      const turnoActual = estadoSubasta?.turnoActual || 1;
 
       res.json({
         success: true,

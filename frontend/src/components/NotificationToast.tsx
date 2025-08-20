@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import { useEffect } from 'react';
 
 // Definir el tipo Notification localmente para evitar problemas de importación
 interface Notification {
@@ -86,13 +86,13 @@ export function NotificationContainer({ notifications, onRemove }: NotificationC
 
   return (
     <div className="fixed bottom-4 right-4 z-50 max-w-sm w-full space-y-2">
-      {notifications.map((notification) => (
-        <NotificationToast
-          key={notification.id}
-          notification={notification}
-          onRemove={onRemove}
-        />
-      ))}
+              {notifications.map((notification, index) => (
+          <NotificationToast
+            key={`${notification.id}-${notification.timestamp.getTime()}-${index}`}
+            notification={notification}
+            onRemove={onRemove}
+          />
+        ))}
     </div>
   );
 }

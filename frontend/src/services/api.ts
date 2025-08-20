@@ -170,7 +170,7 @@ export const salidasService = {
     nombre: string;
     email: string;
   }>> {
-    return apiRequest<{
+    const response = await apiRequest<{
       usuarioId: number;
       nombre: string;
       email: string;
@@ -178,6 +178,18 @@ export const salidasService = {
       method: 'POST',
       body: JSON.stringify({ usuarioId }),
     });
+    
+    // Si la operación fue exitosa, emitir evento de socket
+    if (response.success) {
+      // Importar socket dinámicamente para evitar dependencias circulares
+      const { getSocket } = await import('../hooks/useSocket');
+      const socket = getSocket();
+      if (socket) {
+        socket.emit('usuario-salio-de-puja', { usuarioId });
+      }
+    }
+    
+    return response;
   },
 
   async getUsuariosSalidos(): Promise<ApiResponse<{

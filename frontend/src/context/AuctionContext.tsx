@@ -1,5 +1,6 @@
-import React, { createContext, useContext, useReducer, useEffect } from 'react';
+import React, { createContext, useContext, useReducer } from 'react';
 import type { ReactNode } from 'react';
+import { authService } from '../services/api';
 
 // Tipos
 export interface Usuario {
@@ -32,6 +33,10 @@ export interface Puja {
   itemId: number;
   usuarioId: number;
   createdAt: Date;
+  usuario?: {
+    nombre: string;
+    email: string;
+  };
 }
 
 export interface Notification {
@@ -39,6 +44,21 @@ export interface Notification {
   type: 'success' | 'error' | 'info' | 'warning';
   message: string;
   timestamp: Date;
+}
+
+export interface PlantillaUsuario {
+  usuarioId: number;
+  nombreUsuario: string;
+  jugadores: {
+    id: number;
+    nombre: string;
+    equipo: string;
+    posicion?: string;
+    fotoUrl?: string;
+    precioAdjudicacion: number;
+    fechaAdjudicacion: Date;
+  }[];
+  totalCreditosGastados: number;
 }
 
 export interface AuctionState {
@@ -51,12 +71,14 @@ export interface AuctionState {
   loading: boolean;
   error: string | null;
   notifications: Notification[];
+  plantillas: PlantillaUsuario[];
 }
 
 // Acciones
 type AuctionAction =
   | { type: 'SET_USUARIO'; payload: Usuario }
-  | { type: 'SET_ITEM_ACTUAL'; payload: Item }
+  | { type: 'UPDATE_CREDITOS'; payload: number }
+  | { type: 'SET_ITEM_ACTUAL'; payload: Item | null }
   | { type: 'SET_PUJAS'; payload: Puja[] }
   | { type: 'ADD_PUJA'; payload: Puja }
   | { type: 'SET_TURNO'; payload: number }
@@ -67,6 +89,7 @@ type AuctionAction =
   | { type: 'ADD_NOTIFICATION'; payload: Notification }
   | { type: 'REMOVE_NOTIFICATION'; payload: string }
   | { type: 'CLEAR_NOTIFICATIONS' }
+  | { type: 'SET_PLANTILLAS'; payload: PlantillaUsuario[] }
   | { type: 'LOGOUT' };
 
 // Función para obtener estado inicial desde localStorage
@@ -85,6 +108,7 @@ const getInitialState = (): AuctionState => {
         loading: false,
         error: null,
         notifications: [],
+        plantillas: [],
       };
     }
   } catch (error) {
@@ -101,6 +125,7 @@ const getInitialState = (): AuctionState => {
     loading: false,
     error: null,
     notifications: [],
+    plantillas: [],
   };
 };
 
@@ -114,6 +139,14 @@ function auctionReducer(state: AuctionState, action: AuctionAction): AuctionStat
       // Guardar usuario en localStorage
       localStorage.setItem('auction_user', JSON.stringify(action.payload));
       return { ...state, usuario: action.payload, error: null };
+    case 'UPDATE_CREDITOS':
+      if (state.usuario) {
+        const usuarioActualizado = { ...state.usuario, creditos: action.payload };
+        // Actualizar localStorage
+        localStorage.setItem('auction_user', JSON.stringify(usuarioActualizado));
+        return { ...state, usuario: usuarioActualizado };
+      }
+      return state;
     case 'SET_ITEM_ACTUAL':
       return { ...state, itemActual: action.payload };
     case 'SET_PUJAS':
@@ -124,6 +157,7 @@ function auctionReducer(state: AuctionState, action: AuctionAction): AuctionStat
         pujas: [...state.pujas, action.payload]
       };
     case 'SET_TURNO':
+      console.log('🔄 Reducer SET_TURNO: cambiando de', state.turnoActual, 'a', action.payload);
       return { ...state, turnoActual: action.payload };
     case 'SET_TIEMPO_RESTANTE':
       return { ...state, tiempoRestante: action.payload };
@@ -148,9 +182,18 @@ function auctionReducer(state: AuctionState, action: AuctionAction): AuctionStat
         ...state,
         notifications: [],
       };
+    case 'SET_PLANTILLAS':
+      return {
+        ...state,
+        plantillas: action.payload,
+      };
     case 'LOGOUT':
       // Limpiar localStorage al hacer logout
       localStorage.removeItem('auction_user');
+      // También llamar al servicio de logout del backend
+      authService.logout().catch(error => {
+        console.error('Error al hacer logout en el backend:', error);
+      });
       return { ...initialState };
     default:
       return state;

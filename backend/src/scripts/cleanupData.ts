@@ -15,39 +15,76 @@ async function cleanupData() {
   try {
     console.log('🧹 Limpiando datos problemáticos...\n');
     
-    // 1. Limpiar estado de subasta
-    console.log('🗑️ Limpiando estado de subasta...');
-    await prisma.estadoSubasta.deleteMany({});
-    console.log('✅ Estado de subasta limpiado');
-
-    // 2. Limpiar todas las pujas
-    console.log('🗑️ Limpiando todas las pujas...');
-    await prisma.puja.deleteMany({});
-    console.log('✅ Pujas limpiadas');
-
-    // 3. Eliminar duplicados de Messi (mantener solo el primero)
-    console.log('🗑️ Eliminando duplicados de Messi...');
-    const messiItems = await prisma.item.findMany({
-      where: { nombre: 'Lionel Messi' },
-      orderBy: { id: 'asc' }
+    // 1. Calcular y actualizar créditos basándose en jugadores adjudicados
+    console.log('💰 Calculando créditos basándose en jugadores adjudicados...');
+    
+    // Obtener todos los usuarios
+    const todosLosUsuarios = await prisma.usuario.findMany();
+    
+    // Obtener items subastados (jugadores adjudicados)
+    const itemsSubastados = await prisma.item.findMany({
+      where: { 
+        subastado: true, 
+        ganadorId: { not: null } 
+      }
     });
     
-    if (messiItems.length > 1) {
-      // Mantener el primero, eliminar los demás
-      const toDelete = messiItems.slice(1);
-      for (const item of toDelete) {
-        await prisma.item.delete({ where: { id: item.id } });
-        console.log(`   Eliminado Messi duplicado ID: ${item.id}`);
+    // Calcular créditos gastados por cada usuario
+    const creditosGastados = new Map<number, number>();
+    
+    for (const item of itemsSubastados) {
+      if (item.ganadorId) {
+        // Usar el precioSalida del item (precio final de adjudicación)
+        const creditosActuales = creditosGastados.get(item.ganadorId) || 0;
+        creditosGastados.set(item.ganadorId, creditosActuales + item.precioSalida);
+        console.log(`   ${item.nombre} adjudicado a usuario ${item.ganadorId} por ${item.precioSalida} créditos`);
       }
     }
-    console.log('✅ Duplicados de Messi eliminados');
+    
+    // Actualizar créditos de cada usuario
+    for (const usuario of todosLosUsuarios) {
+      const creditosGastadosUsuario = creditosGastados.get(usuario.id) || 0;
+      const creditosFinales = 2000 - creditosGastadosUsuario;
+      
+      await prisma.usuario.update({
+        where: { id: usuario.id },
+        data: { creditos: creditosFinales }
+      });
+      
+      console.log(`   ${usuario.nombre}: ${2000} - ${creditosGastadosUsuario} = ${creditosFinales} créditos`);
+    }
+    
+    console.log('✅ Créditos calculados correctamente');
 
-    // 4. Resetear créditos de todos los usuarios
-    console.log('💰 Reseteando créditos...');
-    await prisma.usuario.updateMany({
-      data: { creditos: 2000 }
+    // 2. Limpiar estado de subasta pero mantener el turno actual
+    console.log('🗑️ Limpiando estado de subasta pero manteniendo turno...');
+    
+    // Obtener el turno actual antes de limpiar
+    const estadoActual = await prisma.estadoSubasta.findFirst({
+      where: { id: 1 }
     });
-    console.log('✅ Créditos reseteados a 2000');
+    
+    const turnoActual = estadoActual?.turnoActual || 1;
+    console.log(`📊 Turno actual preservado: ${turnoActual}`);
+    
+    // Limpiar solo los campos temporales, manteniendo el turno
+    await prisma.estadoSubasta.upsert({
+      where: { id: 1 },
+      update: {
+        itemActualId: null,
+        subastaActiva: false,
+        tiempoRestante: 0
+      },
+      create: {
+        id: 1,
+        itemActualId: null,
+        subastaActiva: false,
+        turnoActual: turnoActual,
+        tiempoRestante: 0
+      }
+    });
+    
+    console.log('✅ Estado de subasta limpiado (turno preservado)');
 
     // 5. Emitir evento para cerrar todas las sesiones
     if (io) {
@@ -62,11 +99,11 @@ async function cleanupData() {
     // 6. Verificar estado final
     console.log('\n📊 Estado final:');
     
-    const usuarios = await prisma.usuario.findMany({
+    const usuariosFinales = await prisma.usuario.findMany({
       orderBy: { orden: 'asc' }
     });
     console.log('👥 Usuarios:');
-    usuarios.forEach((usuario) => {
+    usuariosFinales.forEach((usuario) => {
       console.log(`   ${usuario.orden}. ${usuario.email} - ${usuario.creditos} créditos`);
     });
 
@@ -79,17 +116,12 @@ async function cleanupData() {
     });
 
     const pujas = await prisma.puja.findMany();
-    console.log(`\n💰 Pujas totales: ${pujas.length}`);
+    console.log(`\n💰 Pujas conservadas: ${pujas.length}`);
 
     const estados = await prisma.estadoSubasta.findMany();
     console.log(`📊 Estados de subasta: ${estados.length}`);
 
     console.log('\n✅ Limpieza completada!');
-    console.log('\n🎯 Próximos pasos:');
-    console.log('1. Inicia sesión con usuario1@test.com');
-    console.log('2. Selecciona Messi para subastar');
-    console.log('3. Todos los usuarios pueden pujar por Messi');
-    console.log('4. El turno es solo para seleccionar el próximo jugador');
 
   } catch (error) {
     console.error('❌ Error al limpiar datos:', error);

@@ -11,6 +11,7 @@ import itemsRoutes from './routes/itemsRoutes';
 import pujasRoutes from './routes/pujasRoutes';
 import salidasRoutes from './routes/salidasRoutes';
 import configRoutes from './routes/configRoutes';
+import plantillasRoutes from './routes/plantillasRoutes';
 
 // Importar Socket.IO
 import { setupAuctionSocket } from './sockets/auctionSocket';
@@ -21,7 +22,7 @@ dotenv.config();
 
 const app = express();
 const server = createServer(app);
-const io = new Server(server, {
+export const io = new Server(server, {
   cors: {
     origin: ["http://localhost:5173", "http://192.168.18.124:5173", "http://127.0.0.1:5173"],
     methods: ["GET", "POST"]
@@ -43,12 +44,20 @@ setupAuctionSocket(io);
 // Pasar la instancia de Socket.IO al script de limpieza
 setSocketIO(io);
 
+// Ejecutar limpieza de datos al iniciar el servidor
+import('./scripts/cleanupData').then(() => {
+  console.log('🧹 Script de limpieza ejecutado al iniciar el servidor');
+}).catch(error => {
+  console.error('❌ Error al ejecutar script de limpieza:', error);
+});
+
 // Rutas
 app.use('/auth', authRoutes);
 app.use('/items', itemsRoutes);
 app.use('/pujas', pujasRoutes);
 app.use('/salidas', salidasRoutes);
 app.use('/config', configRoutes);
+app.use('/plantillas', plantillasRoutes);
 
 // Ruta de prueba
 app.get('/', (req, res) => {
@@ -59,7 +68,8 @@ app.get('/', (req, res) => {
       items: '/items',
       pujas: '/pujas',
       salidas: '/salidas',
-      config: '/config'
+      config: '/config',
+      plantillas: '/plantillas'
     }
   });
 });

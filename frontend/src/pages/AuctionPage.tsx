@@ -1,7 +1,8 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuction } from '../context/AuctionContext';
 import { useSocket } from '../hooks/useSocket';
-import { pujasService, itemsService, authService, salidasService } from '../services/api';
+import { pujasService, itemsService, authService, salidasService, configService } from '../services/api';
+import { plantillasService } from '../services/plantillasService';
 import { NotificationContainer } from '../components/NotificationToast';
 
 // Tipos
@@ -16,25 +17,20 @@ interface Item {
   subastado: boolean;
 }
 
-interface Puja {
-  id: number;
-  monto: number;
-  itemId: number;
-  usuarioId: number;
-  createdAt: string;
-}
-
 export function AuctionPage() {
   const { state, dispatch } = useAuction();
-  const { joinAuction, placeBid, startAuction, selectItem, isConnected } = useSocket();
+  const { joinAuction, placeBid, selectItem, isConnected } = useSocket();
   const [montoPuja, setMontoPuja] = useState('');
+  const [montoMinimo, setMontoMinimo] = useState<number>(0);
+  const [valorMinimoPuja, setValorMinimoPuja] = useState<number>(1);
   const [loading, setLoading] = useState(false);
 
-  const { usuario, itemActual, pujas, turnoActual, tiempoRestante, subastaActiva, notifications } = state;
+  const { usuario, itemActual, pujas, turnoActual, tiempoRestante, subastaActiva, notifications, plantillas } = state;
   const [itemsDisponibles, setItemsDisponibles] = useState<Item[]>([]);
   const [loadingItems, setLoadingItems] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [showDropdown, setShowDropdown] = useState(false);
+  const [todosLosUsuarios, setTodosLosUsuarios] = useState<any[]>([]);
   
   // Debug: mostrar estado actual (solo cuando cambia)
   useEffect(() => {
@@ -98,7 +94,6 @@ export function AuctionPage() {
           }
         } catch (error) {
           console.error('❌ Error al cargar datos:', error);
-          dispatch({ type: 'SET_ERROR', payload: 'Error al cargar los datos' });
         }
       };
 
@@ -106,191 +101,330 @@ export function AuctionPage() {
     }
   }, [usuario?.id, isConnected, dispatch]);
 
-  const handlePujar = async () => {
-    if (!itemActual || !usuario) return;
+  // Cargar items disponibles cuando es el turno del usuario
+  useEffect(() => {
+    const esMiTurno = usuario && turnoActual !== null && usuario.orden === turnoActual;
+    const noHayItemActual = !itemActual;
+    
+    if (esMiTurno && noHayItemActual && !loadingItems) {
+      console.log('🎯 Es mi turno y no hay item actual, cargando items disponibles...');
+      cargarItemsDisponibles();
+    }
+  }, [usuario, turnoActual, itemActual, loadingItems]);
 
+  // Cargar plantillas cuando cambia el usuario, turno o item actual
+  useEffect(() => {
+    if (usuario?.id) {
+      console.log('🔄 Recargando plantillas debido a cambio en:', { usuarioId: usuario.id, turnoActual, itemActual: itemActual?.nombre });
+      cargarPlantillas();
+    }
+  }, [usuario?.id, turnoActual, itemActual]);
+
+  // Cargar todos los usuarios cuando cambia el turno
+  useEffect(() => {
+    if (usuario?.id) {
+      cargarTodosLosUsuarios();
+    }
+  }, [usuario?.id, turnoActual]);
+
+  // Cargar configuración al iniciar
+  useEffect(() => {
+    cargarConfiguracion();
+  }, []);
+
+
+
+  // Actualizar monto mínimo cuando cambia el item actual o las pujas
+  useEffect(() => {
+    if (itemActual) {
+      const pujaActual = pujas.length > 0 ? pujas[pujas.length - 1] : null;
+      const nuevoMontoMinimo = pujaActual ? pujaActual.monto + valorMinimoPuja : itemActual.precioSalida;
+      setMontoMinimo(nuevoMontoMinimo);
+      setMontoPuja(nuevoMontoMinimo.toString());
+      console.log('💰 Monto mínimo actualizado:', nuevoMontoMinimo, '(puja actual:', pujaActual?.monto, '+ valor mínimo:', valorMinimoPuja, ')');
+    } else {
+      setMontoMinimo(0);
+      setMontoPuja('');
+    }
+  }, [itemActual, pujas, valorMinimoPuja]);
+
+  const cargarItemsDisponibles = async () => {
+    setLoadingItems(true);
+    try {
+      console.log('📡 Cargando items disponibles...');
+      const response = await itemsService.getItemsDisponibles();
+      console.log('📦 Respuesta de items disponibles:', response);
+      
+      if (response.success && response.data) {
+        console.log('✅ Items disponibles cargados:', response.data.length);
+        setItemsDisponibles(response.data);
+      } else {
+        console.error('❌ Error al cargar items disponibles:', response.error);
+        setItemsDisponibles([]);
+      }
+    } catch (error) {
+      console.error('❌ Error al cargar items disponibles:', error);
+      setItemsDisponibles([]);
+    } finally {
+      setLoadingItems(false);
+    }
+  };
+
+  const cargarPlantillas = async () => {
+    try {
+      console.log('📡 Cargando plantillas...');
+      const response = await plantillasService.getPlantillas();
+      console.log('📦 Respuesta de plantillas:', response);
+      
+      if (response.success && response.plantillas) {
+        console.log('✅ Plantillas cargadas:', response.plantillas.length);
+        dispatch({ type: 'SET_PLANTILLAS', payload: response.plantillas });
+      } else {
+        console.error('❌ Error al cargar plantillas:', response.error);
+        dispatch({ type: 'SET_PLANTILLAS', payload: [] });
+      }
+    } catch (error) {
+      console.error('❌ Error al cargar plantillas:', error);
+      dispatch({ type: 'SET_PLANTILLAS', payload: [] });
+    }
+  };
+
+  const cargarTodosLosUsuarios = async () => {
+    try {
+      console.log('📡 Cargando todos los usuarios...');
+      const response = await authService.getTurnoActual();
+      console.log('📦 Respuesta de usuarios:', response);
+      
+      if (response.success && response.data && response.data.usuarios) {
+        console.log('✅ Usuarios cargados:', response.data.usuarios.length);
+        setTodosLosUsuarios(response.data.usuarios);
+      } else {
+        console.error('❌ Error al cargar usuarios:', response.error);
+        setTodosLosUsuarios([]);
+      }
+    } catch (error) {
+      console.error('❌ Error al cargar usuarios:', error);
+      setTodosLosUsuarios([]);
+    }
+  };
+
+  const cargarConfiguracion = async () => {
+    try {
+      console.log('📡 Cargando configuración...');
+      const response = await configService.getConfig('puja_minima');
+      console.log('📦 Respuesta de configuración:', response);
+      
+      if (response.success && response.data) {
+        const valorMinimo = parseInt(response.data.valor);
+        setValorMinimoPuja(valorMinimo);
+        console.log('✅ Valor mínimo de puja cargado:', valorMinimo);
+      } else {
+        console.error('❌ Error al cargar configuración:', response.error);
+        setValorMinimoPuja(1); // Valor por defecto
+      }
+    } catch (error) {
+      console.error('❌ Error al cargar configuración:', error);
+      setValorMinimoPuja(1); // Valor por defecto
+    }
+  };
+
+  const handlePujar = async () => {
+    console.log('🔍 Debug handlePujar:', { 
+      itemActual: !!itemActual, 
+      usuario: !!usuario, 
+      montoPuja,
+      loading 
+    });
+    
+    if (!itemActual || !usuario) {
+      console.error('❌ No hay item actual o usuario no autenticado');
+      dispatch({ 
+        type: 'ADD_NOTIFICATION', 
+        payload: { 
+          id: Date.now(), 
+          type: 'error', 
+          message: 'Error: No hay jugador en subasta o usuario no autenticado' 
+        } 
+      });
+      return;
+    }
+    
     const monto = parseInt(montoPuja);
     if (isNaN(monto) || monto <= 0) {
-      dispatch({ type: 'SET_ERROR', payload: 'Monto inválido' });
+      dispatch({ 
+        type: 'ADD_NOTIFICATION', 
+        payload: { 
+          id: Date.now(), 
+          type: 'error', 
+          message: 'Por favor, introduce un monto válido mayor que 0' 
+        } 
+      });
       return;
     }
 
-    // Obtener la puja actual más alta
-    const pujaActual = pujas.length > 0 ? pujas[pujas.length - 1].monto : itemActual.precioSalida;
-    const valorMinimo = 5; // Valor mínimo por defecto
-    const montoMinimo = pujaActual + valorMinimo;
-    
-    // Validar que la puja sea mayor o igual al monto mínimo
+    // Verificar que el monto sea al menos el mínimo requerido
     if (monto < montoMinimo) {
-      dispatch({ type: 'SET_ERROR', payload: `La puja debe ser al menos ${montoMinimo} créditos` });
+      dispatch({ 
+        type: 'ADD_NOTIFICATION', 
+        payload: { 
+          id: Date.now(), 
+          type: 'error', 
+          message: `La puja debe ser al menos ${montoMinimo} créditos` 
+        } 
+      });
       return;
     }
 
+    // Verificar si el usuario tiene suficientes créditos
     if (monto > usuario.creditos) {
-      dispatch({ type: 'SET_ERROR', payload: 'No tienes suficientes créditos' });
+      dispatch({ 
+        type: 'ADD_NOTIFICATION', 
+        payload: { 
+          id: Date.now(), 
+          type: 'error', 
+          message: `No tienes suficientes créditos. Tienes ${usuario.creditos} y necesitas ${monto}` 
+        } 
+      });
       return;
     }
 
     setLoading(true);
     try {
-      // Usar solo Socket.IO para la puja
-      placeBid(itemActual.id, monto);
+      console.log('💰 Realizando puja:', { itemId: itemActual.id, monto, usuarioId: usuario.id });
+      await placeBid(itemActual.id, monto);
       setMontoPuja('');
-      // El servidor manejará el reseteo del contador automáticamente
+      console.log('✅ Puja realizada exitosamente');
     } catch (error) {
-      dispatch({ type: 'SET_ERROR', payload: 'Error de conexión' });
+      console.error('❌ Error al realizar puja:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
+      dispatch({ 
+        type: 'ADD_NOTIFICATION', 
+        payload: { 
+          id: Date.now(), 
+          type: 'error', 
+          message: `Error al realizar la puja: ${errorMessage}` 
+        } 
+      });
     } finally {
       setLoading(false);
     }
   };
 
   const handlePujaRapida = () => {
-    if (!itemActual) return;
-    
-    const pujaActual = pujas.length > 0 ? pujas[pujas.length - 1].monto : itemActual.precioSalida;
-    const valorMinimo = 5; // Valor mínimo por defecto
-    const nuevoMonto = pujaActual + valorMinimo;
+    const montoActual = parseInt(montoPuja) || montoMinimo;
+    const nuevoMonto = Math.max(montoActual + valorMinimoPuja, montoMinimo);
     setMontoPuja(nuevoMonto.toString());
+    console.log('💰 Puja rápida: +', valorMinimoPuja, 'créditos, nuevo monto:', nuevoMonto);
   };
 
-  const handleSalirDePuja = async () => {
-    if (!usuario || !subastaActiva) return;
-
-    // No permitir salir si el usuario tiene la puja más alta
-    if (pujaActual && pujaActual.usuarioId === usuario.id) {
-      dispatch({ type: 'SET_ERROR', payload: 'No puedes salir si tienes la puja más alta' });
-      return;
-    }
-
+  const handleSalirPuja = async () => {
+    if (!itemActual || !usuario) return;
+    
     setLoading(true);
     try {
-      const response = await salidasService.salirDePuja(usuario.id);
-      if (response.success) {
-        console.log('👋 Usuario salió de la puja:', response.data);
-        dispatch({ 
-          type: 'ADD_NOTIFICATION', 
-          payload: {
-            id: Date.now().toString(),
-            type: 'success',
-            message: `Has salido de la puja de ${itemActual?.nombre}`,
-            timestamp: new Date()
-          }
-        });
-      } else {
-        dispatch({ type: 'SET_ERROR', payload: response.error || 'Error al salir de la puja' });
-      }
+      console.log('🚪 Saliendo de puja:', { itemId: itemActual.id, usuarioId: usuario.id });
+      await salidasService.salirDePuja(usuario.id);
     } catch (error) {
       console.error('❌ Error al salir de puja:', error);
-      dispatch({ type: 'SET_ERROR', payload: 'Error de conexión al salir de la puja' });
     } finally {
       setLoading(false);
     }
   };
 
-  const pujaActual = pujas.length > 0 ? pujas[pujas.length - 1] : null;
-  const esMiTurno = usuario && usuario.orden === turnoActual;
-
-  // Cargar items disponibles cuando es mi turno
-  useEffect(() => {
-    if (esMiTurno && !itemActual) {
-      const cargarItemsDisponibles = async () => {
-        setLoadingItems(true);
-        try {
-          const response = await itemsService.getItemsDisponibles();
-          if (response.success) {
-            setItemsDisponibles(response.data || []);
-          }
-        } catch (error) {
-          console.error('Error al cargar items disponibles:', error);
-        } finally {
-          setLoadingItems(false);
-        }
-      };
-
-      cargarItemsDisponibles();
+  const handleSelectItem = async (item: Item) => {
+    if (!usuario) return;
+    
+    setLoading(true);
+    try {
+      console.log('🎯 Seleccionando item:', { itemId: item.id, usuarioId: usuario.id });
+      await selectItem(item.id, usuario.id);
+      setSearchTerm('');
+      setShowDropdown(false);
+    } catch (error) {
+      console.error('❌ Error al seleccionar item:', error);
+    } finally {
+      setLoading(false);
     }
-  }, [esMiTurno, itemActual]);
+  };
 
-  // Filtrar items basado en el término de búsqueda
-  const filteredItems = itemsDisponibles.filter(item => 
+  const handleSearchChange = (value: string) => {
+    setSearchTerm(value);
+    setShowDropdown(value.length > 0);
+  };
+
+  const filteredItems = itemsDisponibles.filter(item =>
     item.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
     item.equipo.toLowerCase().includes(searchTerm.toLowerCase()) ||
     (item.posicion && item.posicion.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
-  const handleSeleccionarJugador = async (itemId: number) => {
-    try {
-      const response = await itemsService.setItemActual(itemId);
-      if (response.success && response.data) {
-        console.log('🎯 Jugador seleccionado, activando subasta...');
-        
-        // Activar la subasta inmediatamente
-        dispatch({ type: 'SET_ITEM_ACTUAL', payload: response.data });
-        dispatch({ type: 'SET_SUBASTA_ACTIVA', payload: true });
-        dispatch({ type: 'SET_TIEMPO_RESTANTE', payload: 30 });
-        
-        setItemsDisponibles([]);
-        setSearchTerm('');
-        setShowDropdown(false);
-        
-        // Emitir evento de socket para notificar a otros usuarios
-        selectItem(itemId);
-        
-        // El servidor manejará el contador automáticamente
-        console.log('🚀 Subasta iniciada, el servidor manejará el contador');
-      }
-    } catch (error) {
-      console.error('Error al seleccionar jugador:', error);
-      dispatch({ type: 'SET_ERROR', payload: 'Error al seleccionar jugador' });
-    }
-  };
-
-
-
-  // El contador ahora se maneja centralmente en el servidor
-
-  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    setSearchTerm(value);
-    setShowDropdown(value.length > 0);
-  };
-
-  const handleSearchFocus = () => {
-    if (searchTerm.length > 0) {
-      setShowDropdown(true);
-    }
-  };
-
-  const handleSearchBlur = () => {
-    // Pequeño delay para permitir que el clic en el dropdown funcione
-    setTimeout(() => setShowDropdown(false), 200);
-  };
-
-  // Ya no necesitamos limpiar intervalos locales
-
-  // Debug: mostrar tiempo restante (solo cuando cambia significativamente)
-  useEffect(() => {
-    if (tiempoRestante % 5 === 0 || tiempoRestante <= 10) {
-      console.log('⏰ Tiempo restante:', tiempoRestante);
-    }
-  }, [tiempoRestante]);
-
-  // Actualizar valor sugerido cuando hay nuevas pujas o cuando se inicia una subasta
-  useEffect(() => {
-    if (itemActual) {
-      const pujaActual = pujas.length > 0 ? pujas[pujas.length - 1].monto : itemActual.precioSalida;
-      const valorMinimo = 5; // Valor mínimo por defecto
-      const nuevoMonto = pujaActual + valorMinimo;
-      
-      // Actualizar el valor sugerido
-      setMontoPuja(nuevoMonto.toString());
-    }
-  }, [pujas, itemActual]);
+  const pujaActual = pujas.length > 0 ? pujas[pujas.length - 1] : null;
+  const esMiTurno = usuario && turnoActual !== null && usuario.orden === turnoActual;
+  const esMiPuja = pujaActual && pujaActual.usuarioId === usuario?.id;
 
   // El servidor maneja el contador centralmente, no necesitamos contador local
   useEffect(() => {
     console.log('🔍 Estado de subasta actualizado:', { subastaActiva, tiempoRestante });
   }, [subastaActiva, tiempoRestante]);
+
+  // Escuchar eventos de actualización de monto cuando hay errores
+  useEffect(() => {
+    const handleUpdateBidAmount = (event: CustomEvent) => {
+      if (event.detail?.montoMinimo) {
+        setMontoPuja(event.detail.montoMinimo.toString());
+        console.log('💰 Monto actualizado después de error:', event.detail.montoMinimo);
+      }
+    };
+
+    window.addEventListener('update-bid-amount', handleUpdateBidAmount as EventListener);
+    
+    return () => {
+      window.removeEventListener('update-bid-amount', handleUpdateBidAmount as EventListener);
+    };
+  }, []);
+
+  // Función auxiliar para renderizar jugadores por posición
+  const renderJugadoresPorPosicion = (jugadores: any[], posicion: string, titulo: string) => (
+    <div>
+      <h5 className="text-xs sm:text-sm font-semibold text-black mb-2 px-1 text-left">{titulo}</h5>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-1 sm:gap-2">
+        {jugadores
+          .filter(jugador => jugador.posicion === posicion)
+          .map((jugador) => (
+            <div key={jugador.id} className="bg-white rounded-lg sm:rounded-xl p-1.5 sm:p-2 border border-green-100 shadow-sm">
+              <div className="flex items-center space-x-1.5 sm:space-x-2">
+                {jugador.fotoUrl ? (
+                  <img
+                    src={jugador.fotoUrl}
+                    alt={jugador.nombre}
+                    className="w-6 h-6 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl object-cover shadow-sm flex-shrink-0"
+                  />
+                ) : (
+                  <div className="w-6 h-6 sm:w-8 sm:h-8 bg-gradient-to-br from-green-100 to-emerald-200 rounded-lg sm:rounded-xl flex items-center justify-center flex-shrink-0">
+                    <span className="text-green-600 text-xs">⚽</span>
+                  </div>
+                )}
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-bold text-gray-800 truncate leading-tight">
+                    {jugador.nombre}
+                  </p>
+                  <div className="flex items-center space-x-1">
+                    <p className="text-xs text-gray-600 truncate">
+                      {jugador.equipo}
+                    </p>
+                  </div>
+                </div>
+                <div className="text-right flex-shrink-0">
+                  <p className="text-xs font-bold text-green-700">
+                    {jugador.precioAdjudicacion}
+                  </p>
+                </div>
+              </div>
+            </div>
+          ))}
+      </div>
+    </div>
+  );
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
@@ -307,7 +441,7 @@ export function AuctionPage() {
                   Subasta App
                 </h1>
                 <p className="text-xs sm:text-sm text-gray-600 font-medium">
-                  {usuario ? `${usuario.nombre} • ${usuario.creditos} créditos` : ''}
+                  {usuario ? usuario.nombre : ''}
                 </p>
               </div>
             </div>
@@ -322,344 +456,433 @@ export function AuctionPage() {
                 onClick={() => dispatch({ type: 'LOGOUT' })}
                 className="bg-gradient-to-r from-red-500 to-pink-500 text-white px-2 py-1 sm:px-3 sm:py-2 rounded-lg hover:from-red-600 hover:to-pink-600 transition-all duration-200 text-xs sm:text-sm font-semibold shadow-md transform hover:scale-105"
               >
-                Salir
+                Cerrar Sesión
               </button>
             </div>
           </div>
         </div>
       </header>
 
-             <div className="max-w-5xl mx-auto px-3 sm:px-4 lg:px-6 py-4 sm:py-6">
-         {/* Estado de conexión y debug */}
-         <div className="mb-4 sm:mb-6 flex justify-center space-x-2 sm:space-x-3">
-           <div className={`inline-flex items-center px-3 py-1.5 sm:px-4 sm:py-2 rounded-full text-xs sm:text-sm font-semibold shadow-md ${
-             isConnected 
-               ? 'bg-gradient-to-r from-green-400 to-emerald-500 text-white' 
-               : 'bg-gradient-to-r from-red-400 to-pink-500 text-white'
-           }`}>
-             <div className={`w-2 h-2 sm:w-3 sm:h-3 rounded-full mr-2 ${
-               isConnected ? 'bg-white animate-pulse' : 'bg-white'
-             }`}></div>
-             {isConnected ? 'Conectado' : 'Desconectado'}
-           </div>
-           
-           {/* Debug info */}
-           <div className="inline-flex items-center px-2 py-1 sm:px-3 sm:py-1.5 bg-gray-100 rounded-lg text-xs text-gray-700">
-             <span className="mr-1 sm:mr-2">Debug:</span>
-             <span className="mr-1 sm:mr-2">S: {subastaActiva ? '✅' : '❌'}</span>
-             <span className="mr-1 sm:mr-2">T: {tiempoRestante}s</span>
-             <span>I: {itemActual ? '✅' : '❌'}</span>
-           </div>
-         </div>
-
-                 {/* Jugador en subasta */}
-         {itemActual ? (
-           <div className="bg-white/95 backdrop-blur-sm rounded-2xl sm:rounded-3xl shadow-xl border border-white/20 overflow-hidden mb-4 sm:mb-6 transform hover:scale-[1.01] transition-transform duration-300">
-             {/* Header del jugador con gradiente mejorado */}
-             <div className="bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 px-4 sm:px-6 lg:px-8 py-3 sm:py-4 relative overflow-hidden">
-               <div className="absolute inset-0 bg-gradient-to-r from-blue-400/20 to-purple-400/20"></div>
-               <div className="relative flex items-center justify-between">
-                 <h2 className="text-white text-lg sm:text-xl font-bold">Jugador en Subasta</h2>
-                 {subastaActiva && (
-                   <div className="text-right">
-                     <p className="text-blue-100 text-xs sm:text-sm font-medium">Estado</p>
-                     <p className="text-white text-base sm:text-lg font-bold">Activa</p>
-                   </div>
-                 )}
-               </div>
-             </div>
-
-                         <div className="p-4 sm:p-6 lg:p-8">
-               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 lg:gap-8">
-                 {/* Información del jugador mejorada */}
-                 <div className="flex items-center space-x-3 sm:space-x-4 lg:space-x-6">
-                   {itemActual.fotoUrl ? (
-                     <img
-                       src={itemActual.fotoUrl}
-                       alt={itemActual.nombre}
-                       className="w-16 h-16 sm:w-20 sm:h-20 lg:w-24 lg:h-24 rounded-xl sm:rounded-2xl object-cover shadow-lg border-2 sm:border-4 border-white"
-                     />
-                   ) : (
-                     <div className="w-16 h-16 sm:w-20 sm:h-20 lg:w-24 lg:h-24 bg-gradient-to-br from-blue-100 via-indigo-100 to-purple-100 rounded-xl sm:rounded-2xl flex items-center justify-center shadow-lg border-2 sm:border-4 border-white">
-                       <span className="text-blue-600 text-xl sm:text-2xl lg:text-3xl">👤</span>
-                     </div>
-                   )}
-                   <div>
-                     <h3 className="text-lg sm:text-xl lg:text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent mb-1 sm:mb-2">
-                       {itemActual.nombre}
-                     </h3>
-                     <p className="text-gray-700 font-semibold text-sm sm:text-base lg:text-lg mb-1">{itemActual.equipo}</p>
-                     {itemActual.posicion && (
-                       <p className="text-xs sm:text-sm text-gray-500 bg-gray-100 px-2 py-0.5 sm:px-3 sm:py-1 rounded-full inline-block">
-                         {itemActual.posicion}
-                       </p>
-                     )}
-                   </div>
-                 </div>
-
-                                 {/* Información de puja y contador mejorada */}
-                 <div className="space-y-3 sm:space-y-4 lg:space-y-6">
-                   {/* Puja actual */}
-                   <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl sm:rounded-2xl p-3 sm:p-4 lg:p-6 border border-blue-100">
-                     <p className="text-xs sm:text-sm text-gray-600 mb-1 sm:mb-2 font-medium">Puja actual</p>
-                     <p className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                       {pujaActual ? pujaActual.monto : itemActual.precioSalida} créditos
-                     </p>
-                     {pujaActual && (
-                       <p className="text-xs sm:text-sm text-gray-500 mt-1 sm:mt-2">
-                         Por: <span className="font-semibold text-blue-600">Usuario {pujaActual.usuarioId}</span>
-                       </p>
-                     )}
-                   </div>
-
-                   {/* Cuenta atrás mejorada */}
-                   {subastaActiva && (
-                     <div className="bg-gradient-to-r from-orange-50 via-red-50 to-pink-50 border-2 border-orange-200 rounded-xl sm:rounded-2xl p-3 sm:p-4 lg:p-6 text-center shadow-lg">
-                       <p className="text-xs sm:text-sm text-gray-600 mb-2 sm:mb-3 font-medium">Tiempo restante</p>
-                       <p className={`text-3xl sm:text-4xl font-bold ${
-                         tiempoRestante <= 10 ? 'text-red-600 animate-pulse' : 
-                         tiempoRestante <= 20 ? 'text-orange-600' : 'text-green-600'
-                       }`}>
-                         {tiempoRestante}s
-                       </p>
-                       {tiempoRestante <= 10 && (
-                         <p className="text-xs sm:text-sm text-red-600 mt-1 sm:mt-2 font-bold">¡Últimos segundos!</p>
-                       )}
-                     </div>
-                   )}
-
-                                     {/* Sistema de pujas mejorado */}
-                   {subastaActiva && usuario && pujaActual?.usuarioId !== usuario.id && (
-                     <div className="space-y-3 sm:space-y-4">
-                       {/* Información del monto mínimo */}
-                       <div className="bg-gradient-to-r from-yellow-50 to-orange-50 border border-yellow-200 rounded-lg sm:rounded-xl p-2 sm:p-3">
-                         <p className="text-xs sm:text-sm text-yellow-800 font-medium">
-                           💡 Puja mínima: <span className="font-bold">
-                           {pujaActual ? pujaActual.monto + 5 : itemActual.precioSalida} créditos</span>
-                         </p>
-                       </div>
-                       
-                       <div className="flex space-x-2 sm:space-x-3">
-                         <input
-                           type="number"
-                           value={montoPuja}
-                           onChange={(e) => setMontoPuja(e.target.value)}
-                           placeholder="Monto"
-                           className="flex-1 px-3 sm:px-4 lg:px-6 py-2 sm:py-3 lg:py-4 border-2 border-gray-200 rounded-lg sm:rounded-xl focus:outline-none focus:ring-2 sm:focus:ring-4 focus:ring-blue-100 focus:border-blue-500 text-sm sm:text-base lg:text-lg font-medium shadow-sm transition-all duration-200"
-                           min={pujaActual ? pujaActual.monto + 5 : itemActual.precioSalida}
-                           max={usuario.creditos}
-                         />
-                         <button
-                           onClick={handlePujaRapida}
-                           className="px-3 sm:px-4 lg:px-6 py-2 sm:py-3 lg:py-4 bg-gradient-to-r from-gray-600 to-gray-700 text-white rounded-lg sm:rounded-xl hover:from-gray-700 hover:to-gray-800 transition-all duration-200 font-bold text-sm sm:text-base lg:text-lg shadow-md transform hover:scale-105"
-                           title="Puja rápida: puja actual + 5 créditos"
-                         >
-                           +5
-                         </button>
-                       </div>
-                       <div className="flex space-x-2 sm:space-x-3">
-                         <button
-                           onClick={handlePujar}
-                           disabled={loading || !montoPuja}
-                           className="flex-1 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white py-2 sm:py-3 lg:py-4 px-3 sm:px-4 lg:px-6 rounded-lg sm:rounded-xl hover:from-blue-700 hover:via-indigo-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 font-bold text-sm sm:text-base lg:text-lg shadow-md transform hover:scale-105"
-                         >
-                           {loading ? 'Pujando...' : 'Pujar'}
-                         </button>
-                         <button
-                           onClick={handleSalirDePuja}
-                           disabled={loading || !subastaActiva || (pujaActual && pujaActual.usuarioId === usuario.id) || false}
-                           className="bg-gradient-to-r from-red-500 to-pink-500 text-white py-2 sm:py-3 lg:py-4 px-3 sm:px-4 lg:px-6 rounded-lg sm:rounded-xl hover:from-red-600 hover:to-pink-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 font-bold text-sm sm:text-base lg:text-lg shadow-md transform hover:scale-105"
-                           title={pujaActual && pujaActual.usuarioId === usuario.id ? "No puedes salir si tienes la puja más alta" : "Salir de la puja actual"}
-                         >
-                           Salir
-                         </button>
-                       </div>
-                     </div>
-                   )}
-                  
-                                     {/* Mensaje cuando el usuario actual tiene la puja más alta */}
-                   {subastaActiva && usuario && pujaActual?.usuarioId === usuario.id && (
-                     <div className="bg-gradient-to-r from-green-50 via-emerald-50 to-teal-50 border-2 border-green-200 rounded-xl sm:rounded-2xl p-3 sm:p-4 lg:p-6 shadow-lg">
-                       <div className="flex items-center">
-                         <div className="w-8 h-8 sm:w-10 sm:h-10 lg:w-12 lg:h-12 bg-gradient-to-r from-green-400 to-emerald-500 rounded-full flex items-center justify-center mr-3 sm:mr-4 shadow-lg">
-                           <span className="text-white text-lg sm:text-xl lg:text-2xl">🏆</span>
-                         </div>
-                         <div>
-                           <p className="text-sm sm:text-base lg:text-lg font-bold text-green-800">
-                             ¡Tienes la puja más alta!
-                           </p>
-                           <p className="text-xs sm:text-sm text-green-700">
-                             Espera a que otros pujen o termine el tiempo
-                           </p>
-                         </div>
-                       </div>
-                     </div>
-                   )}
-                </div>
+      {/* Sección de créditos prominente */}
+      {usuario && (
+        <div className="bg-gradient-to-r from-green-500 via-emerald-500 to-teal-500 text-white py-4 sm:py-6 shadow-lg">
+          <div className="max-w-5xl mx-auto px-3 sm:px-4 lg:px-6">
+            <div className="flex items-center justify-center space-x-3 sm:space-x-4">
+              <div className="w-8 h-8 sm:w-10 sm:h-10 bg-white/20 rounded-full flex items-center justify-center">
+                <span className="text-lg sm:text-xl">💰</span>
+              </div>
+              <div className="text-center">
+                <p className="text-xs sm:text-sm font-medium text-green-100">Tus Créditos</p>
+                <p className="text-2xl sm:text-3xl lg:text-4xl font-bold">
+                  {usuario.creditos.toLocaleString()}
+                </p>
+                <p className="text-xs sm:text-sm text-green-100 font-medium">créditos disponibles</p>
               </div>
             </div>
           </div>
-        ) : (
-          /* Selección de jugador */
-          <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
-            {/* Selección de jugador */}
-             {esMiTurno && !itemActual && itemsDisponibles.length > 0 ? (
-               <div className="p-4 sm:p-6">
-                 <div className="text-center mb-4 sm:mb-6">
-                   <div className="w-8 h-8 sm:w-10 sm:h-10 lg:w-12 lg:h-12 bg-gradient-to-br from-blue-500 via-indigo-500 to-purple-600 rounded-full flex items-center justify-center mx-auto mb-2 sm:mb-3 shadow-lg transform hover:scale-105 transition-transform">
-                     <span className="text-white text-sm sm:text-base lg:text-lg">🎯</span>
-                   </div>
-                   <h2 className="text-lg sm:text-xl lg:text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent mb-1 sm:mb-2">
-                     Selecciona un jugador
-                   </h2>
-                   <p className="text-sm sm:text-base text-gray-600">Busca y selecciona el próximo jugador para subastar</p>
-                 </div>
-                 
-                 {loadingItems ? (
-                   <div className="text-center py-8 sm:py-12">
-                     <div className="animate-spin rounded-full h-8 w-8 sm:h-12 sm:w-12 border-4 border-blue-200 border-t-blue-600 mx-auto mb-3 sm:mb-4"></div>
-                     <p className="text-sm sm:text-base text-gray-600 font-medium">Cargando jugadores...</p>
-                   </div>
-                 ) : (
-                   <div className="relative">
-                     {/* Barra de búsqueda mejorada */}
-                     <div className="relative mb-4 sm:mb-6">
-                       <div className="absolute inset-y-0 left-0 flex items-center pl-3 sm:pl-6">
-                         <svg className="h-4 w-4 sm:h-6 sm:w-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                         </svg>
-                       </div>
-                       <input
-                         type="text"
-                         value={searchTerm}
-                         onChange={handleSearchChange}
-                         onFocus={handleSearchFocus}
-                         onBlur={handleSearchBlur}
-                         placeholder="Buscar jugador por nombre, equipo o posición..."
-                         className="w-full px-3 sm:px-6 py-2 sm:py-4 pl-10 sm:pl-16 bg-white border-2 border-gray-200 rounded-lg sm:rounded-2xl focus:outline-none focus:ring-2 sm:focus:ring-4 focus:ring-blue-100 focus:border-blue-500 text-sm sm:text-base lg:text-lg font-medium shadow-sm transition-all duration-200 hover:border-gray-300"
-                       />
-                     </div>
+        </div>
+      )}
 
-                     {/* Estado inicial - mostrar cuando no hay búsqueda */}
-                     {!showDropdown && (
-                       <div className="text-center py-4 sm:py-6">
-                         <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-br from-blue-100 to-indigo-200 rounded-full flex items-center justify-center mx-auto mb-2">
-                           <span className="text-blue-600 text-sm sm:text-lg">🔍</span>
-                         </div>
-                         <p className="text-xs sm:text-sm text-gray-500">Escribe para buscar jugadores</p>
-                       </div>
-                     )}
+      <div className="max-w-5xl mx-auto px-3 sm:px-4 lg:px-6 py-4 sm:py-6">
+        {/* Estado de conexión y debug */}
+        <div className="mb-4 sm:mb-6 flex justify-center space-x-2 sm:space-x-3">
+          <div className={`inline-flex items-center px-3 py-1.5 sm:px-4 sm:py-2 rounded-full text-xs sm:text-sm font-semibold shadow-md ${
+            isConnected 
+              ? 'bg-gradient-to-r from-green-400 to-emerald-500 text-white' 
+              : 'bg-gradient-to-r from-red-400 to-pink-500 text-white'
+          }`}>
+            <div className={`w-2 h-2 sm:w-3 sm:h-3 rounded-full mr-2 ${
+              isConnected ? 'bg-white animate-pulse' : 'bg-white'
+            }`}></div>
+            {isConnected ? 'Conectado' : 'Desconectado'}
+          </div>
+          
 
-                     {/* Lista de jugadores - solo mostrar cuando hay búsqueda */}
-                     {showDropdown && filteredItems.length > 0 && (
-                       <div className="space-y-2 sm:space-y-3 max-h-64 sm:max-h-80 overflow-y-auto">
-                         {filteredItems.map((item) => (
-                           <div
-                             key={item.id}
-                             className="flex items-center justify-between p-3 sm:p-4 bg-gradient-to-r from-white to-gray-50 hover:from-blue-50 hover:to-indigo-50 rounded-lg sm:rounded-2xl cursor-pointer transition-all duration-200 border border-gray-200 shadow-sm hover:shadow-md transform hover:scale-[1.01]"
-                             onClick={() => handleSeleccionarJugador(item.id)}
-                           >
-                             <div className="flex items-center space-x-2 sm:space-x-3 lg:space-x-4">
-                               <div className="w-10 h-10 sm:w-12 sm:h-12 lg:w-14 lg:h-14 bg-gradient-to-br from-blue-100 to-indigo-200 rounded-lg sm:rounded-xl flex items-center justify-center shadow-sm">
-                                 <span className="text-blue-600 text-sm sm:text-lg lg:text-xl">⚽</span>
-                               </div>
-                               <div>
-                                 <div className="font-bold text-gray-900 text-sm sm:text-base lg:text-lg">{item.nombre}</div>
-                                 <div className="text-xs sm:text-sm text-gray-600 font-medium">
-                                   {item.posicion && `${item.posicion} • `}{item.equipo}
-                                 </div>
-                               </div>
-                             </div>
-                             <div className="text-right">
-                               <div className="text-sm sm:text-base lg:text-lg font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                                 {item.precioSalida} créditos
-                               </div>
-                             </div>
-                           </div>
-                         ))}
-                       </div>
-                     )}
+        </div>
 
-                     {/* Mensaje cuando no hay resultados */}
-                     {showDropdown && searchTerm.length > 0 && filteredItems.length === 0 && (
-                       <div className="text-center py-12">
-                         <div className="w-16 h-16 bg-gradient-to-br from-gray-100 to-gray-200 rounded-full flex items-center justify-center mx-auto mb-4">
-                           <span className="text-gray-400 text-2xl">🔍</span>
-                         </div>
-                         <p className="text-gray-500 font-medium">No se encontraron jugadores</p>
-                         <p className="text-sm text-gray-400 mt-1">Intenta con otro término de búsqueda</p>
-                       </div>
-                     )}
-                   </div>
-                 )}
-               </div>
-             ) : (
-               <div className="p-8 text-center">
-                 <div className="w-20 h-20 bg-gradient-to-br from-gray-200 to-gray-300 rounded-full flex items-center justify-center mx-auto mb-6">
-                   <span className="text-gray-500 text-3xl">⚽</span>
-                 </div>
-                 <h3 className="text-xl font-bold text-gray-900 mb-2">
-                   {esMiTurno 
-                     ? 'No hay jugadores disponibles' 
-                     : 'No hay ningún jugador en subasta'
-                   }
-                 </h3>
-                 {esMiTurno && (
-                   <p className="text-gray-500">
-                     Espera a que haya jugadores disponibles
-                   </p>
-                 )}
-               </div>
-             )}
+        {/* Panel "Es tu turno" */}
+        {esMiTurno && !itemActual && (
+          <div className="bg-gradient-to-r from-yellow-400 via-orange-400 to-red-400 text-white rounded-2xl sm:rounded-3xl p-4 sm:p-6 mb-4 sm:mb-6 shadow-xl border border-yellow-300/20">
+            <div className="flex items-center justify-center space-x-3">
+              <div className="w-8 h-8 sm:w-10 sm:h-10 bg-white/20 rounded-full flex items-center justify-center">
+                <span className="text-lg sm:text-xl">🎯</span>
+              </div>
+              <div className="text-center">
+                <h2 className="text-lg sm:text-xl font-bold">¡Es tu turno!</h2>
+                <p className="text-sm sm:text-base text-yellow-100">Selecciona un jugador para subastar</p>
+              </div>
+            </div>
           </div>
         )}
 
-                 {/* Historial de pujas mejorado */}
-         {pujas.length > 0 && (
-           <div className="bg-white/95 backdrop-blur-sm rounded-2xl sm:rounded-3xl shadow-xl border border-white/20 overflow-hidden mt-4 sm:mt-6 lg:mt-8">
-             <div className="bg-gradient-to-r from-gray-700 via-gray-800 to-gray-900 px-4 sm:px-6 lg:px-8 py-3 sm:py-4 lg:py-6">
-               <h3 className="text-white font-bold text-lg sm:text-xl">Historial de Pujas</h3>
-             </div>
-             <div className="p-3 sm:p-4 lg:p-6">
-               <div className="space-y-2 sm:space-y-3 max-h-48 sm:max-h-64 overflow-y-auto">
-                 {pujas.map((puja) => (
-                   <div key={puja.id} className="flex justify-between items-center py-2 sm:py-3 lg:py-4 px-3 sm:px-4 lg:px-6 bg-gradient-to-r from-gray-50 to-blue-50 rounded-lg sm:rounded-2xl border border-gray-100 shadow-sm">
-                     <div className="flex items-center space-x-2 sm:space-x-3 lg:space-x-4">
-                       <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-full flex items-center justify-center shadow-lg">
-                         <span className="text-white text-xs sm:text-sm font-bold">U{puja.usuarioId}</span>
-                       </div>
-                       <span className="text-xs sm:text-sm text-gray-600 font-medium">
-                         {new Date(puja.createdAt).toLocaleTimeString()}
-                       </span>
-                     </div>
-                     <span className="font-bold text-lg sm:text-xl bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                       {puja.monto} créditos
-                     </span>
-                   </div>
-                 ))}
-               </div>
-             </div>
-           </div>
-         )}
+        {/* Barra de búsqueda */}
+        {esMiTurno && !itemActual && (
+          <div className="bg-white/95 backdrop-blur-sm rounded-2xl sm:rounded-3xl shadow-xl border border-white/20 p-4 sm:p-6 mb-4 sm:mb-6 relative z-[9999]">
+            <div className="relative">
+              <div className="flex items-center space-x-2 sm:space-x-3 mb-3 sm:mb-4">
+                <span className="text-lg sm:text-xl">🔍</span>
+                <h2 className="text-lg sm:text-xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                  Selecciona un jugador
+                </h2>
+              </div>
+              
+              <div className="relative z-[9999]">
+                <input
+                  type="text"
+                  value={searchTerm}
+                  onChange={(e) => handleSearchChange(e.target.value)}
+                  placeholder="Busca por nombre, equipo o posición..."
+                  className="w-full px-4 py-3 sm:px-6 sm:py-4 bg-white border-2 border-gray-200 rounded-xl sm:rounded-2xl focus:border-blue-500 focus:outline-none transition-all duration-200 text-sm sm:text-base shadow-sm"
+                />
+                
+                {showDropdown && (
+                  <div className="absolute top-full left-0 right-0 mt-2 bg-white border-2 border-gray-200 rounded-xl sm:rounded-2xl shadow-xl max-h-60 overflow-y-auto z-[9999] pointer-events-auto">
+                    {filteredItems.length > 0 ? (
+                      filteredItems.map((item) => (
+                        <button
+                          key={item.id}
+                          onClick={() => handleSelectItem(item)}
+                          className="w-full px-4 py-3 sm:px-6 sm:py-4 text-left hover:bg-gray-50 transition-colors duration-200 border-b border-gray-100 last:border-b-0"
+                        >
+                          <div className="flex items-center space-x-3">
+                            {item.fotoUrl ? (
+                              <img
+                                src={item.fotoUrl}
+                                alt={item.nombre}
+                                className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg object-cover"
+                              />
+                            ) : (
+                              <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-br from-blue-100 to-purple-200 rounded-lg flex items-center justify-center">
+                                <span className="text-blue-600 text-sm">⚽</span>
+                              </div>
+                            )}
+                            <div className="flex-1">
+                              <p className="font-semibold text-gray-800 text-sm sm:text-base">{item.nombre}</p>
+                              <p className="text-gray-600 text-xs sm:text-sm">{item.equipo}</p>
+                              {item.posicion && (
+                                <p className="text-gray-500 text-xs">{item.posicion}</p>
+                              )}
+                            </div>
+                            <div className="text-right">
+                              <p className="font-bold text-green-600 text-sm sm:text-base">{item.precioSalida} créditos</p>
+                            </div>
+                          </div>
+                        </button>
+                      ))
+                    ) : (
+                      <div className="px-4 py-3 sm:px-6 sm:py-4 text-center text-gray-500">
+                        No se encontraron jugadores
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
 
-                 {/* Información del turno mejorada */}
-         {esMiTurno && !itemActual && !subastaActiva && (
-           <div className="bg-gradient-to-r from-yellow-50 via-orange-50 to-red-50 border-2 border-yellow-200 rounded-2xl sm:rounded-3xl p-2 sm:p-3 lg:p-4 mt-4 sm:mt-6 lg:mt-8 shadow-xl">
-             <div className="flex items-center justify-center">
-               <div className="w-10 h-10 sm:w-12 sm:h-12 lg:w-14 lg:h-14 bg-gradient-to-r from-yellow-400 to-orange-500 rounded-full flex items-center justify-center mr-3 sm:mr-4 lg:mr-6 shadow-xl">
-                 <span className="text-white text-lg sm:text-xl lg:text-2xl">🎯</span>
-               </div>
-               <div>
-                 <h3 className="text-base sm:text-lg lg:text-xl font-bold text-yellow-800 mb-0.5 sm:mb-1">
-                   ¡Es tu turno!
-                 </h3>
-                 <p className="text-xs sm:text-sm lg:text-base text-yellow-700">
-                   Selecciona el próximo jugador para subastar
-                 </p>
-               </div>
-             </div>
-           </div>
-         )}
+        {/* Jugador en subasta */}
+        {itemActual ? (
+          <div className="bg-white/95 backdrop-blur-sm rounded-2xl sm:rounded-3xl shadow-xl border border-white/20 overflow-hidden mb-4 sm:mb-6 transform hover:scale-[1.01] transition-transform duration-300">
+            {/* Header del jugador con gradiente mejorado */}
+            <div className="bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 px-4 sm:px-6 lg:px-8 py-3 sm:py-4 relative overflow-hidden">
+              <div className="absolute inset-0 bg-gradient-to-r from-blue-400/20 to-purple-400/20"></div>
+              <div className="relative flex items-center justify-between">
+                <h2 className="text-white text-lg sm:text-xl font-bold">Jugador en Subasta</h2>
+                {subastaActiva && (
+                  <div className="text-right">
+                    <p className="text-blue-100 text-xs sm:text-sm font-medium">Estado</p>
+                    <p className="text-white text-base sm:text-lg font-bold">Activa</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="p-4 sm:p-6 lg:p-8">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 lg:gap-8">
+                {/* Información del jugador mejorada */}
+                <div className="flex items-center space-x-3 sm:space-x-4 lg:space-x-6">
+                  {itemActual.fotoUrl ? (
+                    <img
+                      src={itemActual.fotoUrl}
+                      alt={itemActual.nombre}
+                      className="w-16 h-16 sm:w-20 sm:h-20 lg:w-24 lg:h-24 rounded-xl sm:rounded-2xl object-cover shadow-lg border-2 sm:border-4 border-white"
+                    />
+                  ) : (
+                    <div className="w-16 h-16 sm:w-20 sm:h-20 lg:w-24 lg:h-24 bg-gradient-to-br from-blue-100 via-indigo-100 to-purple-100 rounded-xl sm:rounded-2xl flex items-center justify-center shadow-lg border-2 sm:border-4 border-white">
+                      <span className="text-blue-600 text-xl sm:text-2xl lg:text-3xl">👤</span>
+                    </div>
+                  )}
+                  <div>
+                    <h3 className="text-lg sm:text-xl lg:text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent mb-1 sm:mb-2">
+                      {itemActual.nombre}
+                    </h3>
+                    <p className="text-gray-700 font-semibold text-sm sm:text-base lg:text-lg mb-1">{itemActual.equipo}</p>
+                    {itemActual.posicion && (
+                      <p className="text-xs sm:text-sm text-gray-500 bg-gray-100 px-2 py-0.5 sm:px-3 sm:py-1 rounded-full inline-block">
+                        {itemActual.posicion}
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Información de puja mejorada */}
+                <div className="bg-gradient-to-br from-green-50 via-emerald-50 to-teal-50 rounded-xl sm:rounded-2xl p-3 sm:p-4 lg:p-6 border-2 border-green-100 shadow-inner">
+                  <div className="text-center">
+                    <p className="text-xs sm:text-sm text-green-700 font-semibold mb-1 sm:mb-2">
+                      {pujaActual ? 'Puja Actual' : 'Precio de Salida'}
+                    </p>
+                    <p className="text-2xl sm:text-3xl lg:text-4xl font-bold bg-gradient-to-r from-green-600 via-emerald-600 to-teal-600 bg-clip-text text-transparent mb-1 sm:mb-2">
+                      {pujaActual ? pujaActual.monto : itemActual.precioSalida} créditos
+                    </p>
+                    {pujaActual && (
+                      <p className="text-xs sm:text-sm text-green-600 font-medium">
+                        Usuario {pujaActual.usuarioId}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Contador de tiempo */}
+              {subastaActiva && (
+                <div className="mt-3 sm:mt-4 text-center">
+                  <div className="inline-flex items-center px-4 py-2 sm:px-6 sm:py-4 bg-gradient-to-r from-red-500 to-pink-500 text-white rounded-xl sm:rounded-2xl shadow-lg border-2 border-red-400">
+                    <span className="text-lg sm:text-2xl lg:text-3xl mr-2 sm:mr-3">⏰</span>
+                    <span className="text-xl sm:text-3xl lg:text-4xl font-bold">{tiempoRestante}s</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Controles de puja */}
+              {subastaActiva && (
+                <div className="mt-3 sm:mt-4 space-y-2 sm:space-y-3">
+                  {/* Input de puja */}
+                  <div className="flex items-center space-x-2 sm:space-x-3 w-full">
+                    <input
+                      type="number"
+                      value={montoPuja}
+                      onChange={(e) => setMontoPuja(e.target.value)}
+                      placeholder={`Mín: ${montoMinimo}`}
+                      className="w-20 sm:flex-1 px-2 py-2 sm:px-3 sm:py-2 bg-white border-2 border-gray-200 rounded-lg sm:rounded-xl focus:border-blue-500 focus:outline-none transition-all duration-200 text-sm sm:text-base shadow-sm"
+                      min={montoMinimo}
+                    />
+                    <button
+                      onClick={handlePujaRapida}
+                      className="flex-1 px-3 py-2 sm:px-4 sm:py-3 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-lg sm:rounded-xl hover:from-blue-600 hover:to-indigo-600 transition-all duration-200 font-semibold shadow-md transform hover:scale-105 text-sm sm:text-base"
+                    >
+                      +{valorMinimoPuja}
+                    </button>
+                  </div>
+
+                  {/* Botones de acción */}
+                  <div className="flex space-x-2 sm:space-x-3">
+                    <button
+                      onClick={handlePujar}
+                      disabled={loading || esMiPuja}
+                      className={`flex-1 py-2 sm:py-3 px-4 sm:px-6 rounded-lg sm:rounded-xl font-semibold shadow-md transform hover:scale-105 transition-all duration-200 text-sm sm:text-base ${
+                        esMiPuja
+                          ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                          : 'bg-gradient-to-r from-green-500 to-emerald-500 text-white hover:from-green-600 hover:to-emerald-600'
+                      }`}
+                    >
+                      {loading ? 'Pujando...' : esMiPuja ? 'Tienes la puja más alta' : 'Pujar'}
+                    </button>
+                    
+                    <button
+                      onClick={handleSalirPuja}
+                      disabled={loading || esMiPuja}
+                      className={`flex-1 py-2 sm:py-3 px-4 sm:px-6 rounded-lg sm:rounded-xl font-semibold shadow-md transform hover:scale-105 transition-all duration-200 text-sm sm:text-base ${
+                        esMiPuja
+                          ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                          : 'bg-gradient-to-r from-red-500 to-pink-500 text-white hover:from-red-600 hover:to-pink-600'
+                      }`}
+                    >
+                      {loading ? 'Saliendo...' : 'Salir de la Puja'}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        ) : null}
+
+        {/* Historial de pujas */}
+        {pujas.length > 0 && (
+          <div className="bg-white/95 backdrop-blur-sm rounded-2xl sm:rounded-3xl shadow-xl border border-white/20 overflow-hidden mb-4 sm:mb-6">
+            <div className="bg-gradient-to-r from-gray-700 via-gray-800 to-gray-900 px-4 sm:px-6 lg:px-8 py-3 sm:py-4">
+              <h3 className="text-white font-bold text-lg sm:text-xl">Historial de Pujas</h3>
+            </div>
+            <div className="p-4 sm:p-6 lg:p-8">
+              <div className="space-y-2 sm:space-y-3">
+                {pujas.map((puja, index) => (
+                  <div key={`${puja.id}-${puja.createdAt}-${index}`} className="flex items-center justify-between p-3 sm:p-4 bg-gray-50 rounded-xl sm:rounded-2xl">
+                    <div className="flex items-center space-x-3">
+                      <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-br from-blue-500 to-purple-500 rounded-full flex items-center justify-center">
+                        <span className="text-white text-sm sm:text-base font-bold">{index + 1}</span>
+                      </div>
+                      <div>
+                        <p className="font-semibold text-gray-800 text-sm sm:text-base">
+                          {puja.usuario?.nombre || `Usuario ${puja.usuarioId}`}
+                        </p>
+                        <p className="text-gray-600 text-xs sm:text-sm">
+                          {new Date(puja.createdAt).toLocaleTimeString()}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-bold text-green-600 text-lg sm:text-xl">{puja.monto} créditos</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Panel de Turno Actual */}
+        {!subastaActiva && !itemActual && turnoActual !== null && !esMiTurno && (
+          <div className="bg-white/95 backdrop-blur-sm rounded-2xl sm:rounded-3xl shadow-xl border border-white/20 overflow-hidden mb-4 sm:mb-6">
+            <div className="bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-600 px-4 sm:px-6 lg:px-8 py-3 sm:py-4 lg:py-6">
+              <h3 className="text-white font-bold text-lg sm:text-xl">Turno Actual</h3>
+            </div>
+            <div className="p-4 sm:p-6 lg:p-8">
+              {(() => {
+                const usuarioConTurno = todosLosUsuarios.find(u => u.orden === turnoActual);
+                const esMiTurno = usuario && usuario.orden === turnoActual;
+                
+                return (
+                  <div className="text-center">
+                    {usuarioConTurno ? (
+                      <div className="space-y-3 sm:space-y-4">
+                        <div className="w-16 h-16 sm:w-20 sm:h-20 bg-gradient-to-br from-purple-100 to-indigo-200 rounded-full flex items-center justify-center mx-auto">
+                          <span className="text-purple-600 text-2xl sm:text-3xl">👤</span>
+                        </div>
+                        <div>
+                          <h4 className="text-lg sm:text-xl font-bold text-gray-800 mb-2">
+                            {esMiTurno ? '¡Es tu turno!' : `Turno de ${usuarioConTurno.nombre}`}
+                          </h4>
+                          <p className="text-gray-600 text-sm sm:text-base">
+                            {esMiTurno 
+                              ? 'Selecciona un jugador para subastar' 
+                              : 'Esperando a que seleccione un jugador'
+                            }
+                          </p>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-3 sm:space-y-4">
+                        <div className="w-16 h-16 sm:w-20 sm:h-20 bg-gradient-to-br from-gray-100 to-gray-200 rounded-full flex items-center justify-center mx-auto">
+                          <span className="text-gray-600 text-2xl sm:text-3xl">⏳</span>
+                        </div>
+                        <div>
+                          <h4 className="text-lg sm:text-xl font-bold text-gray-800 mb-2">
+                            Turno {turnoActual}
+                          </h4>
+                          <p className="text-gray-600 text-sm sm:text-base">
+                            Cargando información del usuario...
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+            </div>
+          </div>
+        )}
+
+        {/* Panel de Plantillas */}
+        <div className="bg-white/95 backdrop-blur-sm rounded-2xl sm:rounded-3xl shadow-xl border border-white/20 overflow-hidden mt-4 sm:mt-6 lg:mt-8 relative z-20">
+          <div className="bg-gradient-to-r from-green-700 via-emerald-800 to-teal-900 px-4 sm:px-6 lg:px-8 py-3 sm:py-4 lg:py-6">
+            <h3 className="text-white font-bold text-lg sm:text-xl">Plantillas de Usuarios</h3>
+          </div>
+          <div className="p-3 sm:p-4 lg:p-6">
+            {plantillas.length > 0 ? (
+              <div className="space-y-4 sm:space-y-6">
+                {plantillas
+                  .sort((a, b) => {
+                    // Mostrar primero la plantilla del usuario actual
+                    if (usuario && a.usuarioId === usuario.id) return -1;
+                    if (usuario && b.usuarioId === usuario.id) return 1;
+                    return 0;
+                  })
+                  .map((plantilla) => (
+                    <div key={plantilla.usuarioId} className={`rounded-xl sm:rounded-2xl p-3 sm:p-4 lg:p-6 border shadow-sm ${
+                      usuario && plantilla.usuarioId === usuario.id 
+                        ? 'bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200' 
+                        : 'bg-gradient-to-r from-green-50 to-emerald-50 border-green-200'
+                    }`}>
+                      <div className="flex justify-between items-center mb-3 sm:mb-4">
+                        <div className="flex items-center space-x-2">
+                          <h4 className={`text-lg sm:text-xl font-bold ${
+                            usuario && plantilla.usuarioId === usuario.id 
+                              ? 'text-blue-800' 
+                              : 'text-green-800'
+                          }`}>
+                            {plantilla.nombreUsuario}
+                          </h4>
+                          {usuario && plantilla.usuarioId === usuario.id && (
+                            <span className="bg-blue-100 text-blue-800 text-xs font-bold px-2 py-1 rounded-full">
+                              TU PLANTILLA
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-right">
+                          <p className={`text-xs sm:text-sm font-medium ${
+                            usuario && plantilla.usuarioId === usuario.id 
+                              ? 'text-blue-600' 
+                              : 'text-green-600'
+                          }`}>
+                            Total gastado
+                          </p>
+                          <p className={`text-base sm:text-lg font-bold ${
+                            usuario && plantilla.usuarioId === usuario.id 
+                              ? 'text-blue-700' 
+                              : 'text-green-700'
+                          }`}>
+                            {plantilla.totalCreditosGastados} créditos
+                          </p>
+                        </div>
+                      </div>
+                      
+                      {plantilla.jugadores.length > 0 ? (
+                        <div className="space-y-3 sm:space-y-4">
+                          {renderJugadoresPorPosicion(plantilla.jugadores, 'PORTERO', 'Porteros')}
+                          {renderJugadoresPorPosicion(plantilla.jugadores, 'DEFENSA', 'Defensas')}
+                          {renderJugadoresPorPosicion(plantilla.jugadores, 'MEDIO', 'Medios')}
+                          {renderJugadoresPorPosicion(plantilla.jugadores, 'DELANTERO', 'Delanteros')}
+                        </div>
+                      ) : (
+                        <div className="text-center py-4 sm:py-6">
+                          <div className="w-12 h-12 sm:w-16 sm:h-16 bg-gradient-to-br from-green-100 to-emerald-200 rounded-full flex items-center justify-center mx-auto mb-3 sm:mb-4">
+                            <span className="text-green-600 text-xl sm:text-2xl">⚽</span>
+                          </div>
+                          <p className="text-sm sm:text-base text-gray-500 font-medium">
+                            Sin jugadores adjudicados
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+              </div>
+            ) : (
+              <div className="text-center py-8 sm:py-12">
+                <div className="w-16 h-16 sm:w-20 sm:h-20 bg-gradient-to-br from-green-100 to-emerald-200 rounded-full flex items-center justify-center mx-auto mb-4 sm:mb-6">
+                  <span className="text-green-600 text-2xl sm:text-3xl">🏆</span>
+                </div>
+                <p className="text-base sm:text-lg text-gray-500 font-medium">
+                  No hay plantillas disponibles
+                </p>
+                <p className="text-sm text-gray-400 mt-2">
+                  Las plantillas aparecerán cuando se adjudiquen jugadores
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+
+
       </div>
       
       {/* Sistema de notificaciones */}

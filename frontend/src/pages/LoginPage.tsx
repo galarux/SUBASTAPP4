@@ -66,7 +66,7 @@ export function LoginPage() {
 
         <div className="mt-6 text-center">
           <p className="text-sm text-gray-500">
-            Para pruebas, usa cualquier email válido
+            Solo usuarios registrados pueden acceder
           </p>
         </div>
       </div>

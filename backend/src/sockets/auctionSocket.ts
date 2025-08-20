@@ -24,6 +24,12 @@ export function setupAuctionSocket(io: Server) {
         socket.join('auction-room');
         console.log('✅ Usuario se unió a la subasta:', data.usuarioId);
         
+        // Obtener información actualizada del usuario
+        const usuarioActualizado = await prisma.usuario.findUnique({
+          where: { id: data.usuarioId },
+          select: { id: true, nombre: true, email: true, creditos: true, orden: true }
+        });
+        
         // Emitir estado actual de la subasta desde la base de datos
         const estadoSubasta = await prisma.estadoSubasta.findFirst({
           where: { id: 1 },
@@ -31,6 +37,21 @@ export function setupAuctionSocket(io: Server) {
             itemActual: true
           }
         });
+
+        if (usuarioActualizado) {
+          // Emitir evento con información actualizada del usuario
+          socket.emit('usuario-actualizado', { usuario: usuarioActualizado });
+          console.log('💰 Información del usuario enviada:', usuarioActualizado);
+          
+          // Emitir el turno actual después de enviar la información del usuario
+          if (estadoSubasta) {
+            console.log('🔄 Enviando turno actual al frontend:', estadoSubasta.turnoActual);
+            socket.emit('turn-changed', { turnoActual: estadoSubasta.turnoActual });
+            console.log('✅ Evento turn-changed emitido para socket:', socket.id);
+          } else {
+            console.log('⚠️ No hay estado de subasta para enviar turno');
+          }
+        }
 
         if (estadoSubasta && estadoSubasta.itemActual) {
           console.log('📡 Enviando estado actual de subasta:', {
@@ -50,9 +71,36 @@ export function setupAuctionSocket(io: Server) {
               socket.emit('item-selected', { item: estadoSubasta.itemActual });
             }
           } else {
-            // Si el item ya fue subastado y no hay subasta activa, enviar evento de limpieza
-            console.log('🗑️ Item ya subastado, enviando evento de limpieza');
-            socket.emit('item-cleared', { message: 'Subasta finalizada' });
+            // Si el item ya fue subastado y no hay subasta activa, verificar si es el turno del usuario
+            if (estadoSubasta.turnoActual === usuarioActualizado?.orden) {
+              console.log('🎯 Es el turno del usuario pero el item anterior ya fue subastado, permitiendo selección');
+                          // Emitir evento para permitir la selección de jugador
+            socket.emit('item-updated', { 
+              item: null, 
+              subastaActiva: false, 
+              tiempoRestante: 0,
+              esMiTurno: true,
+              turnoActual: estadoSubasta.turnoActual
+            });
+            } else {
+              console.log('🗑️ Item ya subastado, enviando evento de limpieza');
+              socket.emit('item-cleared', { message: 'Subasta finalizada' });
+            }
+          }
+        } else {
+          // Si no hay estado de subasta o item actual, verificar si es el turno del usuario
+          if (estadoSubasta && estadoSubasta.turnoActual === usuarioActualizado?.orden) {
+            console.log('🎯 Es el turno del usuario pero no hay item seleccionado, permitiendo selección');
+            // Emitir evento para permitir la selección de jugador
+            socket.emit('item-updated', { 
+              item: null, 
+              subastaActiva: false, 
+              tiempoRestante: 0,
+              esMiTurno: true,
+              turnoActual: estadoSubasta.turnoActual
+            });
+          } else {
+            console.log('ℹ️ No hay estado de subasta o item actual');
           }
         }
       } catch (error) {
@@ -61,7 +109,7 @@ export function setupAuctionSocket(io: Server) {
     });
 
     // Seleccionar item y activar subasta automáticamente
-    socket.on('select-item', async (data: { itemId: number }) => {
+    socket.on('select-item', async (data: { itemId: number; usuarioId?: number }) => {
       try {
         console.log('🎯 Item seleccionado:', data);
         
@@ -80,24 +128,43 @@ export function setupAuctionSocket(io: Server) {
           return;
         }
 
-        // Obtener el primer usuario disponible para puja inicial
-        const primerUsuario = await prisma.usuario.findFirst({
-          orderBy: { id: 'asc' }
+        // Obtener el usuario que seleccionó el item
+        const usuarioSeleccionador = await prisma.usuario.findUnique({
+          where: { id: data.usuarioId }
         });
 
-        if (!primerUsuario) {
-          socket.emit('item-error', { error: 'No hay usuarios disponibles para crear puja inicial' });
+        if (!usuarioSeleccionador) {
+          socket.emit('item-error', { error: 'Usuario no encontrado' });
           return;
         }
 
-        // Crear puja inicial automática
+        // Verificar que el usuario tenga suficientes créditos
+        if (usuarioSeleccionador.creditos < item.precioSalida) {
+          socket.emit('item-error', { error: 'No tienes suficientes créditos para la puja inicial' });
+          return;
+        }
+
+        // Crear puja inicial automática con el usuario que seleccionó el item
         const pujaInicial = await prisma.puja.create({
           data: {
             itemId: data.itemId,
             monto: item.precioSalida,
-            usuarioId: primerUsuario.id // Usar el primer usuario disponible
+            usuarioId: usuarioSeleccionador.id
+          },
+          include: {
+            usuario: {
+              select: { nombre: true, email: true }
+            }
           }
         });
+
+        // Restar créditos al usuario que seleccionó el item
+        await prisma.usuario.update({
+          where: { id: usuarioSeleccionador.id },
+          data: { creditos: usuarioSeleccionador.creditos - item.precioSalida }
+        });
+
+        console.log(`💰 Puja inicial creada: ${usuarioSeleccionador.nombre} pujó ${item.precioSalida} créditos por ${item.nombre}`);
 
         // Iniciar contador centralizado
         iniciarContadorCentralizado(io);
@@ -107,6 +174,30 @@ export function setupAuctionSocket(io: Server) {
           item, 
           tiempoRestante: currentTiempoRestante
         });
+
+        // Resetear el estado salioDePuja de todos los usuarios para la nueva subasta
+        await prisma.usuario.updateMany({
+          data: { salioDePuja: false }
+        });
+
+        // Actualizar el estado de la subasta en la base de datos
+        await prisma.estadoSubasta.upsert({
+          where: { id: 1 },
+          update: {
+            itemActualId: data.itemId,
+            subastaActiva: true,
+            tiempoRestante: currentTiempoRestante
+          },
+          create: {
+            id: 1,
+            itemActualId: data.itemId,
+            subastaActiva: true,
+            tiempoRestante: currentTiempoRestante
+          }
+        });
+
+        // Emitir inmediatamente la puja inicial para que el frontend sepa que ya hay una puja activa
+        io.to('auction-room').emit('new-bid', { puja: pujaInicial });
 
         console.log('✅ Subasta iniciada automáticamente para:', item.nombre);
       } catch (error) {
@@ -181,14 +272,28 @@ export function setupAuctionSocket(io: Server) {
           return;
         }
 
-        const valorMinimoDefecto = 5; // Valor mínimo por defecto
+        // Verificar que el usuario no sea el que tiene la puja más alta
+        if (pujaActual && pujaActual.usuarioId === data.usuarioId) {
+          console.log('❌ Error: El usuario ya tiene la puja más alta');
+          socket.emit('bid-error', { error: 'Ya tienes la puja más alta, no puedes pujar de nuevo' });
+          return;
+        }
+
+        // Obtener el valor mínimo de puja desde la configuración
+        const configPujaMinima = await prisma.configuracion.findUnique({
+          where: { clave: 'puja_minima' }
+        });
+        const valorMinimoDefecto = configPujaMinima ? parseInt(configPujaMinima.valor) : 5;
         const montoMinimo = pujaActual ? pujaActual.monto + valorMinimoDefecto : item.precioSalida;
         console.log('💰 Monto mínimo requerido:', montoMinimo);
         console.log('💰 Monto de la puja:', data.monto);
         
         if (data.monto < montoMinimo) {
           console.log('❌ Error: Monto insuficiente');
-          socket.emit('bid-error', { error: `La puja debe ser al menos ${montoMinimo} créditos` });
+          socket.emit('bid-error', { 
+            error: `La puja debe ser al menos ${montoMinimo} créditos`,
+            montoMinimo: montoMinimo 
+          });
           return;
         }
 
@@ -222,8 +327,20 @@ export function setupAuctionSocket(io: Server) {
         // Resetear contador cuando hay nueva puja
         resetearContador(io);
 
+        // Obtener el usuario actualizado después de la puja
+        const usuarioActualizado = await prisma.usuario.findUnique({
+          where: { id: data.usuarioId },
+          select: { id: true, nombre: true, email: true, creditos: true, orden: true }
+        });
+
         // Emitir la nueva puja a todos los usuarios
-        io.to('auction-room').emit('new-bid', { puja });
+        io.to('auction-room').emit('new-bid', { 
+          puja,
+          usuarioActualizado: usuarioActualizado
+        });
+        
+        // Verificar si se debe adjudicar inmediatamente
+        verificarAdjudicacionInmediata(io);
 
         console.log('✅ Puja procesada exitosamente:', puja);
       } catch (error) {
@@ -238,6 +355,18 @@ export function setupAuctionSocket(io: Server) {
     socket.on('leave-auction', () => {
       socket.leave('auction-room');
       console.log('Usuario salió de la subasta:', socket.id);
+    });
+
+    // Usuario salió de la puja (evento desde el frontend)
+    socket.on('usuario-salio-de-puja', async (data: { usuarioId: number }) => {
+      try {
+        console.log('👋 Usuario salió de la puja:', data.usuarioId);
+        
+        // Verificar si se debe adjudicar inmediatamente
+        await verificarAdjudicacionInmediata(io);
+      } catch (error) {
+        console.error('Error al procesar salida de puja:', error);
+      }
     });
 
     // Evento de reinicio por administrador
@@ -315,6 +444,14 @@ function resetearContador(io: Server) {
   });
   console.log('📡 Evento time-update emitido con 12 segundos');
   
+  // Actualizar el tiempo restante en la base de datos
+  prisma.estadoSubasta.update({
+    where: { id: 1 },
+    data: { tiempoRestante: currentTiempoRestante }
+  }).catch(error => {
+    console.error('❌ Error al actualizar tiempo restante:', error);
+  });
+
   // Crear nuevo contador directamente (sin llamar a iniciarContadorCentralizado)
   console.log('🚀 Creando nuevo contador...');
   auctionCountdown = setInterval(() => {
@@ -344,7 +481,7 @@ function resetearContador(io: Server) {
 }
 
 // Función para adjudicar el jugador al ganador cuando se agota el tiempo
-async function adjudicarJugador(io: Server) {
+export async function adjudicarJugador(io?: Server) {
   try {
     console.log('🏆 Adjudicando jugador al ganador...');
     
@@ -377,6 +514,22 @@ async function adjudicarJugador(io: Server) {
       return;
     }
 
+    // Obtener el usuario ganador para verificar sus créditos actuales
+    const usuarioGanador = await prisma.usuario.findUnique({
+      where: { id: pujaGanadora.usuarioId }
+    });
+
+    if (!usuarioGanador) {
+      console.log('❌ Usuario ganador no encontrado');
+      return;
+    }
+
+    // Verificar que el usuario tenga suficientes créditos
+    if (usuarioGanador.creditos < pujaGanadora.monto) {
+      console.log('❌ Usuario no tiene suficientes créditos para pagar la puja');
+      return;
+    }
+
     // Marcar el item como subastado y asignar el ganador
     await prisma.item.update({
       where: { id: estadoSubasta.itemActual.id },
@@ -386,13 +539,29 @@ async function adjudicarJugador(io: Server) {
       }
     });
 
-    // Desactivar la subasta
+    // Restar créditos al usuario ganador
+    await prisma.usuario.update({
+      where: { id: pujaGanadora.usuarioId },
+      data: {
+        creditos: usuarioGanador.creditos - pujaGanadora.monto
+      }
+    });
+
+    console.log(`💰 Créditos restados: ${usuarioGanador.nombre} tenía ${usuarioGanador.creditos}, pagó ${pujaGanadora.monto}, le quedan ${usuarioGanador.creditos - pujaGanadora.monto}`);
+
+    // Desactivar la subasta y limpiar el item actual para permitir nueva selección
     await prisma.estadoSubasta.update({
       where: { id: 1 },
       data: {
         subastaActiva: false,
-        tiempoRestante: 0
+        tiempoRestante: 0,
+        itemActualId: null // Limpiar el item actual para permitir nueva selección
       }
+    });
+
+    // Resetear el estado salioDePuja de todos los usuarios para la próxima subasta
+    await prisma.usuario.updateMany({
+      data: { salioDePuja: false }
     });
 
     console.log('✅ Jugador adjudicado:', {
@@ -401,29 +570,47 @@ async function adjudicarJugador(io: Server) {
       monto: pujaGanadora.monto
     });
 
-    // Emitir evento de fin de subasta con los detalles del ganador
-    io.to('auction-room').emit('auction-ended', {
-      message: `¡${estadoSubasta.itemActual.nombre} ha sido adjudicado!`,
-      ganador: pujaGanadora.usuario,
-      monto: pujaGanadora.monto,
-      item: estadoSubasta.itemActual,
-      tiempoRestante: 0
-    });
+    // Emitir eventos solo si io está disponible
+    if (io) {
+      // Obtener todos los usuarios actualizados para enviar sus créditos
+      const usuariosActualizados = await prisma.usuario.findMany({
+        select: { id: true, nombre: true, email: true, creditos: true, orden: true }
+      });
 
-    // Emitir actualización del estado de la subasta
-    io.to('auction-room').emit('auction-state-updated', {
-      subastaActiva: false,
-      tiempoRestante: 0
-    });
+      // Emitir evento de fin de subasta con los detalles del ganador
+      io.to('auction-room').emit('auction-ended', {
+        message: `¡${estadoSubasta.itemActual.nombre} ha sido adjudicado!`,
+        ganador: pujaGanadora.usuario,
+        monto: pujaGanadora.monto,
+        item: estadoSubasta.itemActual,
+        tiempoRestante: 0,
+        usuariosActualizados: usuariosActualizados
+      });
 
-    // Emitir evento para limpiar el item actual en todos los clientes
-    io.to('auction-room').emit('item-cleared', {
-      message: 'Subasta finalizada'
-    });
+      // Emitir actualización del estado de la subasta
+      io.to('auction-room').emit('auction-state-updated', {
+        subastaActiva: false,
+        tiempoRestante: 0
+      });
+
+      // Cambiar al siguiente turno
+      const siguienteTurno = await cambiarTurno();
+      console.log('🔄 Turno cambiado a:', siguienteTurno);
+
+      // Emitir evento para limpiar el item actual en todos los clientes
+      io.to('auction-room').emit('item-cleared', {
+        message: 'Subasta finalizada'
+      });
+
+      // Emitir evento de cambio de turno
+      io.to('auction-room').emit('turn-changed', {
+        turnoActual: siguienteTurno
+      });
+    }
 
     // Verificar si algún equipo ya tiene el número máximo de jugadores
     const shouldEnd = await ConfigService.shouldAuctionEnd();
-    if (shouldEnd) {
+    if (shouldEnd && io) {
       console.log('🏁 ¡Un equipo ha alcanzado el número máximo de jugadores!');
       
       // Obtener estadísticas finales
@@ -454,5 +641,120 @@ async function adjudicarJugador(io: Server) {
 
   } catch (error) {
     console.error('❌ Error al adjudicar jugador:', error);
+  }
+}
+
+// Función para cambiar al siguiente turno
+export async function cambiarTurno(): Promise<number> {
+  try {
+    // Obtener el turno actual
+    const estadoActual = await prisma.estadoSubasta.findFirst({
+      where: { id: 1 }
+    });
+
+    const turnoActual = estadoActual?.turnoActual || 1;
+
+    // Obtener todos los usuarios ordenados por su campo 'orden'
+    const usuarios = await prisma.usuario.findMany({
+      orderBy: { orden: 'asc' }
+    });
+
+    if (usuarios.length === 0) {
+      console.log('❌ No hay usuarios disponibles');
+      return 1;
+    }
+
+    // Encontrar el índice del usuario actual
+    const usuarioActualIndex = usuarios.findIndex(u => u.orden === turnoActual);
+    
+    // Calcular el siguiente turno
+    let siguienteTurno: number;
+    if (usuarioActualIndex === -1 || usuarioActualIndex === usuarios.length - 1) {
+      // Si no se encuentra el usuario actual o es el último, volver al primero
+      siguienteTurno = usuarios[0].orden;
+    } else {
+      // Pasar al siguiente usuario
+      siguienteTurno = usuarios[usuarioActualIndex + 1].orden;
+    }
+
+    // Actualizar el turno en la base de datos
+    await prisma.estadoSubasta.update({
+      where: { id: 1 },
+      data: { turnoActual: siguienteTurno }
+    });
+
+    console.log(`🔄 Turno cambiado de ${turnoActual} a ${siguienteTurno}`);
+    return siguienteTurno;
+
+  } catch (error) {
+    console.error('❌ Error al cambiar turno:', error);
+    return 1; // Valor por defecto en caso de error
+  }
+}
+
+// Función para verificar si se debe adjudicar inmediatamente
+async function verificarAdjudicacionInmediata(io: Server) {
+  try {
+    // Obtener el estado actual de la subasta
+    const estadoSubasta = await prisma.estadoSubasta.findFirst({
+      where: { id: 1 },
+      include: {
+        itemActual: true
+      }
+    });
+
+    if (!estadoSubasta || !estadoSubasta.subastaActiva || !estadoSubasta.itemActual) {
+      return; // No hay subasta activa
+    }
+
+    // Obtener la puja más alta actual
+    const pujaMasAlta = await prisma.puja.findFirst({
+      where: { itemId: estadoSubasta.itemActual.id },
+      orderBy: { monto: 'desc' },
+      include: { usuario: true }
+    });
+
+    if (!pujaMasAlta) {
+      return; // No hay pujas
+    }
+
+    // Obtener todos los usuarios
+    const todosUsuarios = await prisma.usuario.findMany();
+    
+    // Obtener todas las pujas para este item
+    const todasLasPujas = await prisma.puja.findMany({
+      where: { itemId: estadoSubasta.itemActual.id },
+      orderBy: { monto: 'desc' }
+    });
+    
+    // Si solo hay una puja (la inicial), el usuario que la hizo no puede salir
+    // Si hay más de una puja, el usuario con la más alta no puede salir
+    const usuarioGanadorId = pujaMasAlta.usuarioId;
+    
+    // Contar cuántos usuarios han salido (excluyendo al ganador)
+    const usuariosSalidos = todosUsuarios.filter(u => 
+      u.salioDePuja && u.id !== usuarioGanadorId
+    ).length;
+    
+    // Contar cuántos usuarios deberían haber salido (todos excepto el ganador)
+    const usuariosQueDeberianSalir = todosUsuarios.length - 1;
+    
+    console.log(`📊 Verificación de adjudicación inmediata: ${usuariosSalidos}/${usuariosQueDeberianSalir} usuarios han salido`);
+    
+    // Si todos los usuarios excepto el que tiene la puja más alta han salido, adjudicar inmediatamente
+    if (usuariosSalidos >= usuariosQueDeberianSalir) {
+      console.log('🏆 Todos los usuarios han salido excepto el ganador, adjudicando inmediatamente...');
+      
+      // Limpiar el contador si está activo
+      if (auctionCountdown) {
+        clearInterval(auctionCountdown);
+        auctionCountdown = null;
+      }
+      
+      // Adjudicar el jugador inmediatamente
+      await adjudicarJugador(io);
+    }
+  } catch (error) {
+    console.error('❌ Error al verificar adjudicación inmediata:', error);
   }
 }
