@@ -319,7 +319,7 @@ export function useSocket() {
     });
   }, [state.usuario]);
 
-  const selectItem = useCallback((itemId: number, usuarioId: number) => {
+  const selectItem = useCallback((itemId: number) => {
     return new Promise<void>((resolve, reject) => {
       if (socketInstance && state.usuario) {
         console.log('🎯 Seleccionando item:', itemId, 'por usuario:', state.usuario.id);
