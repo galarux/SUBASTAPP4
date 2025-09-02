@@ -5,6 +5,8 @@
   "scripts": {
     "dev": "nodemon src/server.ts",
     "build": "tsc",
+    "build:strict": "tsc -p tsconfig.prod.json",
+    "build:check": "tsc --noEmit",
     "start": "node dist/server.js",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",

@@ -1,13 +1,29 @@
- # 🏆 Subasta App - Aplicación de Subastas en Tiempo Real
+# 🏆 SUBASTAPP - Aplicación de Subastas en Tiempo Real
 
-Aplicación web para gestionar subastas de jugadores de fútbol en tiempo real, diseñada para uso móvil y PC.
+[![GitHub](https://img.shields.io/badge/GitHub-Repository-blue?style=for-the-badge&logo=github)](https://github.com/galarux/SUBASTAPP4)
+[![Node.js](https://img.shields.io/badge/Node.js-18+-green?style=for-the-badge&logo=node.js)](https://nodejs.org/)
+[![React](https://img.shields.io/badge/React-18+-blue?style=for-the-badge&logo=react)](https://reactjs.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5+-blue?style=for-the-badge&logo=typescript)](https://www.typescriptlang.org/)
+
+Aplicación web completa para gestionar subastas de jugadores de fútbol en tiempo real, diseñada para uso móvil y PC.
+
+## 🌟 Características Principales
+
+- ✅ **Subastas en tiempo real** con Socket.IO
+- ✅ **Interfaz responsive** optimizada para móvil y PC
+- ✅ **Sistema de turnos** para seleccionar jugadores
+- ✅ **Gestión de créditos** automática
+- ✅ **Base de datos MySQL** con Prisma ORM
+- ✅ **Autenticación de usuarios** simple
+- ✅ **Imágenes locales** de jugadores
+- ✅ **Sistema de reinicio** automático
 
 ## 🚀 Tecnologías
 
 ### Frontend
 - **React 18** + **TypeScript**
-- **Vite** (bundler)
-- **Tailwind CSS** (estilos)
+- **Vite** (bundler rápido)
+- **Tailwind CSS** (estilos responsive)
 - **Socket.IO Client** (tiempo real)
 - **Zustand** (gestión de estado)
 
@@ -15,7 +31,7 @@ Aplicación web para gestionar subastas de jugadores de fútbol en tiempo real, 
 - **Node.js** + **Express**
 - **TypeScript**
 - **Socket.IO** (tiempo real)
-- **Prisma** (ORM)
+- **Prisma** (ORM moderno)
 - **MySQL** (base de datos)
 
 ## 📋 Prerrequisitos
@@ -24,16 +40,15 @@ Aplicación web para gestionar subastas de jugadores de fútbol en tiempo real, 
 - MySQL (local o remoto)
 - npm o yarn
 
-## 🛠️ Instalación
+## 🛠️ Instalación Rápida
 
 ### 1. Clonar el repositorio
 ```bash
-git clone <url-del-repositorio>
-cd SUBASTAPP
+git clone https://github.com/galarux/SUBASTAPP4.git
+cd SUBASTAPP4
 ```
 
 ### 2. Configurar el Backend
-
 ```bash
 cd backend
 
@@ -49,12 +64,11 @@ copy env.example .env
 # Generar cliente de Prisma
 npm run db:generate
 
-# Crear base de datos (asegúrate de que MySQL esté corriendo)
+# Crear base de datos
 npm run db:push
 ```
 
 ### 3. Configurar el Frontend
-
 ```bash
 cd ../frontend
 
@@ -64,86 +78,76 @@ npm install
 
 ## 🚀 Ejecución
 
-### Desarrollo
-
-**Opción 1 - Iniciar todo junto:**
+### Desarrollo (Recomendado)
 ```bash
 # Desde el directorio raíz
 .\start-all.bat
 ```
 
-**Opción 2 - Iniciar por separado:**
-
-**Terminal 1 - Backend:**
+### Por Separado
 ```bash
-cd backend
-npm run dev
+# Terminal 1 - Backend
+cd backend && npm run dev
+
+# Terminal 2 - Frontend  
+cd frontend && npm run dev
 ```
 
-**Terminal 2 - Frontend:**
-```bash
-cd frontend
-npm run dev
-```
-
-### Producción
-
-```bash
-# Backend
-cd backend
-npm run build
-npm start
-
-# Frontend
-cd frontend
-npm run build
-```
-
-## 📱 URLs
+## 📱 URLs de Acceso
 
 - **Frontend**: http://localhost:5173
 - **Backend API**: http://localhost:3001
-- **Prisma Studio**: http://localhost:5555 (ejecutar `npm run db:studio`)
+- **Prisma Studio**: http://localhost:5555 (`npm run db:studio`)
 
 ## 🎮 Cómo Usar la Aplicación
 
-### 1. Iniciar la Aplicación
+### 1. Iniciar
 ```bash
 .\start-all.bat
 ```
 
-### 2. Acceder a la Aplicación
-- Abre http://localhost:5173 en tu navegador
-- Inicia sesión con uno de los usuarios de prueba:
+### 2. Acceder
+- Abre http://localhost:5173
+- Inicia sesión con usuarios de prueba:
   - `usuario1@test.com` (Turno 1)
   - `a@a.com` (Turno 2)
 
-### 3. Probar la Subasta
-1. **Usuario 1** selecciona un jugador para subastar
+### 3. Probar Subasta
+1. **Usuario 1** selecciona jugador para subastar
 2. **Usuario 1** inicia la subasta
-3. **Ambos usuarios** pueden pujar en tiempo real
-4. El contador se sincroniza automáticamente
-5. Cuando termina el tiempo, se adjudica al ganador
+3. **Ambos usuarios** pujan en tiempo real
+4. Contador se sincroniza automáticamente
+5. Se adjudica al ganador cuando termina
 
-### 4. Reiniciar la Subasta
+### 4. Reiniciar
 ```bash
 .\reset-auction.bat
 ```
-- Cierra automáticamente todas las sesiones
-- Resetea créditos y datos
-- Los usuarios deben volver a iniciar sesión
+
+## 🔧 Solución de Problemas de IP
+
+Si la aplicación no funciona por cambio de IP:
+
+```bash
+# Solución automática
+powershell -ExecutionPolicy Bypass -File fix-ip.ps1
+
+# Ver documentación completa
+# IP-TROUBLESHOOTING.md
+```
 
 ## 🗄️ Base de Datos
 
-### Tablas principales:
-- **usuarios**: Información de usuarios y créditos
-- **items**: Jugadores disponibles para subasta
-- **pujas**: Historial de pujas realizadas
-- **configuracion**: Configuración global del sistema
+### Tablas Principales
+- **usuarios**: Usuarios y créditos
+- **items**: Jugadores disponibles
+- **pujas**: Historial de pujas
+- **configuracion**: Parámetros globales
+- **estadoSubasta**: Estado actual
 
-### Comandos útiles:
+### Comandos Útiles
 ```bash
-# Ver base de datos en navegador
+# Ver base de datos
 npm run db:studio
 
 # Crear migración
@@ -153,82 +157,10 @@ npm run db:migrate
 npm run db:push
 ```
 
-## 🔄 Gestión de Subastas
-
-### Reiniciar Subasta
-Para reiniciar completamente la subasta y cerrar todas las sesiones de usuario:
-
-```bash
-# Opción 1 - Usar el script batch (recomendado)
-.\reset-auction.bat
-
-# Opción 2 - Ejecutar directamente
-cd backend && npx ts-node src/scripts/resetAuction.ts
-```
-
-### Limpiar Datos
-Para limpiar solo los datos sin cerrar sesiones:
-
-```bash
-cd backend && npx ts-node src/scripts/cleanupData.ts
-```
-
-### Scripts Disponibles
-- **`reset-auction.bat`**: Reinicia subasta y cierra todas las sesiones
-- **`cleanupData.ts`**: Limpia datos sin cerrar sesiones
-- **`resetAuction.ts`**: Script completo de reinicio con notificaciones
-
-### ¿Qué hace el reinicio?
-1. **Limpia estado de subasta** - Elimina todas las pujas y estados
-2. **Resetea créditos** - Todos los usuarios vuelven a 2000 créditos
-3. **Elimina duplicados** - Limpia jugadores duplicados
-4. **Notifica usuarios** - Envía alerta a todos los usuarios conectados
-5. **Cierra sesiones** - Redirige automáticamente al login
-
-## 🖼️ Imágenes de Jugadores
-
-La aplicación incluye imágenes locales de jugadores ubicadas en `frontend/img/jugadores/`. El sistema asigna automáticamente una imagen aleatoria a cada jugador durante el proceso de reinicio.
-
-### Estructura de imágenes:
-```
-frontend/img/jugadores/
-├── Adrian_18812.png
-├── Adam_Aznou_Ben_Cheikh_431921.png
-├── Aimar_Dunabeitia_384262.png
-└── ... (más de 50 imágenes)
-```
-
-### Asignación automática:
-- Cada vez que se ejecuta `reset-auction.bat`, se insertan 50 jugadores
-- A cada jugador se le asigna una imagen aleatoria de la carpeta
-- Las imágenes se cargan localmente para mejor rendimiento
-
-## 🔧 Configuración
-
-### Variables de entorno (.env)
-
-```env
-# Base de datos
-DATABASE_URL="mysql://usuario:password@localhost:3306/subasta_app"
-
-# Servidor
-PORT=3001
-
-# CORS
-CORS_ORIGIN="http://localhost:5173"
-
-# RapidAPI (para cargar jugadores)
-RAPIDAPI_KEY="tu_api_key_aqui"
-RAPIDAPI_HOST="api-football-v1.p.rapidapi.com"
-
-# JWT
-JWT_SECRET="tu_secreto_jwt_aqui"
-```
-
 ## 📁 Estructura del Proyecto
 
 ```
-SUBASTAPP/
+SUBASTAPP4/
 ├── frontend/                 # React app
 │   ├── src/
 │   │   ├── components/      # Componentes reutilizables
@@ -236,9 +168,8 @@ SUBASTAPP/
 │   │   ├── hooks/           # Custom hooks
 │   │   ├── context/         # Estado global
 │   │   ├── services/        # Llamadas API
-│   │   └── App.tsx
-│   ├── img/
-│   │   └── jugadores/       # Imágenes locales de jugadores
+│   │   └── config/          # Configuración centralizada
+│   ├── img/jugadores/       # Imágenes locales
 │   └── package.json
 │
 ├── backend/                  # Node.js API
@@ -247,26 +178,28 @@ SUBASTAPP/
 │   │   ├── routes/          # Endpoints REST
 │   │   ├── sockets/         # Eventos Socket.IO
 │   │   ├── scripts/         # Scripts de gestión
-│   │   │   ├── cleanupData.ts    # Limpieza de datos
-│   │   │   └── resetAuction.ts   # Reinicio completo
 │   │   ├── db/              # Configuración DB
 │   │   └── server.ts
 │   ├── prisma/
 │   │   └── schema.prisma    # Esquema de base de datos
 │   └── package.json
 │
-├── start-all.bat            # Iniciar aplicación completa
-├── reset-auction.bat        # Reiniciar subasta
+├── scripts/                  # Scripts de gestión
+│   ├── start-all.bat        # Iniciar aplicación
+│   ├── stop-all.bat         # Detener aplicación
+│   ├── reset-auction.bat    # Reiniciar subasta
+│   └── fix-ip.ps1           # Solucionar problemas de IP
+│
 └── README.md
 ```
 
-## 🎯 Funcionalidades
+## 🎯 Funcionalidades Completas
 
 - ✅ Login de usuarios
-- ✅ Visualización de jugadores en subasta
+- ✅ Visualización de jugadores
 - ✅ Sistema de pujas en tiempo real
 - ✅ Turnos para seleccionar jugadores
-- ✅ Gestión de créditos
+- ✅ Gestión de créditos automática
 - ✅ Interfaz responsive (móvil + PC)
 - ✅ Reinicio automático de subastas
 - ✅ Cierre automático de sesiones
@@ -274,9 +207,9 @@ SUBASTAPP/
 - ✅ Sincronización de contadores
 - ✅ Imágenes locales de jugadores
 - ✅ Sistema de salidas de puja
-- ✅ Adjudicación automática cuando solo queda un usuario
+- ✅ Adjudicación automática
 
-## 🔄 Próximos pasos
+## 🔄 Próximos Pasos
 
 1. ✅ Implementar autenticación completa
 2. ✅ Cargar jugadores desde RapidAPI
@@ -285,8 +218,33 @@ SUBASTAPP/
 5. ✅ Mejorar UI/UX
 6. ✅ Sistema de reinicio automático
 7. ✅ Notificaciones en tiempo real
-8. Configurar despliegue
+8. 🔄 Configurar despliegue
+
+## 🤝 Contribuir
+
+1. Fork el proyecto
+2. Crea una rama para tu feature (`git checkout -b feature/AmazingFeature`)
+3. Commit tus cambios (`git commit -m 'Add some AmazingFeature'`)
+4. Push a la rama (`git push origin feature/AmazingFeature`)
+5. Abre un Pull Request
+
+## 📄 Licencia
+
+Este proyecto está bajo la Licencia ISC. Ver el archivo `LICENSE` para más detalles.
 
 ## 📞 Soporte
 
-Para dudas o problemas, revisa la documentación o crea un issue en el repositorio.
+- 📧 **Issues**: [GitHub Issues](https://github.com/galarux/SUBASTAPP4/issues)
+- 📚 **Documentación**: [IP-TROUBLESHOOTING.md](IP-TROUBLESHOOTING.md)
+- 🐛 **Reportar Bugs**: Crear un issue en GitHub
+
+## 🙏 Agradecimientos
+
+- [RapidAPI Football](https://rapidapi.com/api-sports/api/api-football/) por los datos de jugadores
+- [Prisma](https://www.prisma.io/) por el ORM moderno
+- [Socket.IO](https://socket.io/) por la comunicación en tiempo real
+- [Tailwind CSS](https://tailwindcss.com/) por los estilos responsive
+
+---
+
+⭐ **Si te gusta este proyecto, dale una estrella en GitHub!**
