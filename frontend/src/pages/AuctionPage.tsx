@@ -243,7 +243,8 @@ export function AuctionPage() {
         payload: { 
           id: Date.now().toString(), 
           type: 'error', 
-          message: 'Error: No hay jugador en subasta o usuario no autenticado' 
+          message: 'Error: No hay jugador en subasta o usuario no autenticado',
+          timestamp: new Date()
         } 
       });
       return;
@@ -256,7 +257,8 @@ export function AuctionPage() {
         payload: { 
           id: Date.now().toString(), 
           type: 'error', 
-          message: 'Por favor, introduce un monto válido mayor que 0' 
+          message: 'Por favor, introduce un monto válido mayor que 0',
+          timestamp: new Date()
         } 
       });
       return;
@@ -269,7 +271,8 @@ export function AuctionPage() {
         payload: { 
           id: Date.now().toString(), 
           type: 'error', 
-          message: `La puja debe ser al menos ${montoMinimo} créditos` 
+          message: `La puja debe ser al menos ${montoMinimo} créditos`,
+          timestamp: new Date()
         } 
       });
       return;
@@ -282,7 +285,8 @@ export function AuctionPage() {
         payload: { 
           id: Date.now().toString(), 
           type: 'error', 
-          message: `No tienes suficientes créditos. Tienes ${usuario.creditos} y necesitas ${monto}` 
+          message: `No tienes suficientes créditos. Tienes ${usuario.creditos} y necesitas ${monto}`,
+          timestamp: new Date()
         } 
       });
       return;
@@ -302,7 +306,8 @@ export function AuctionPage() {
         payload: { 
           id: Date.now().toString(), 
           type: 'error', 
-          message: `Error al realizar la puja: ${errorMessage}` 
+          message: `Error al realizar la puja: ${errorMessage}`,
+          timestamp: new Date()
         } 
       });
     } finally {
