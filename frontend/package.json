@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "build:azure": "tsc -b && VITE_LEGACY_PEER_DEPS=true vite build",
+    "build:check": "tsc -b --noEmit",
     "lint": "eslint .",
     "preview": "vite preview"
   },
@@ -33,5 +35,12 @@
     "typescript": "~5.8.3",
     "typescript-eslint": "^8.39.1",
     "vite": "^7.1.2"
+  },
+  "overrides": {
+    "rollup": {
+      "optionalDependencies": {
+        "@rollup/rollup-linux-x64-gnu": "4.9.5"
+      }
+    }
   }
 }
