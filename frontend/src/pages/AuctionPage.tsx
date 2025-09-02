@@ -241,7 +241,7 @@ export function AuctionPage() {
       dispatch({ 
         type: 'ADD_NOTIFICATION', 
         payload: { 
-          id: Date.now(), 
+          id: Date.now().toString(), 
           type: 'error', 
           message: 'Error: No hay jugador en subasta o usuario no autenticado' 
         } 
@@ -254,7 +254,7 @@ export function AuctionPage() {
       dispatch({ 
         type: 'ADD_NOTIFICATION', 
         payload: { 
-          id: Date.now(), 
+          id: Date.now().toString(), 
           type: 'error', 
           message: 'Por favor, introduce un monto válido mayor que 0' 
         } 
@@ -267,7 +267,7 @@ export function AuctionPage() {
       dispatch({ 
         type: 'ADD_NOTIFICATION', 
         payload: { 
-          id: Date.now(), 
+          id: Date.now().toString(), 
           type: 'error', 
           message: `La puja debe ser al menos ${montoMinimo} créditos` 
         } 
@@ -280,7 +280,7 @@ export function AuctionPage() {
       dispatch({ 
         type: 'ADD_NOTIFICATION', 
         payload: { 
-          id: Date.now(), 
+          id: Date.now().toString(), 
           type: 'error', 
           message: `No tienes suficientes créditos. Tienes ${usuario.creditos} y necesitas ${monto}` 
         } 
@@ -300,7 +300,7 @@ export function AuctionPage() {
       dispatch({ 
         type: 'ADD_NOTIFICATION', 
         payload: { 
-          id: Date.now(), 
+          id: Date.now().toString(), 
           type: 'error', 
           message: `Error al realizar la puja: ${errorMessage}` 
         } 
@@ -337,7 +337,7 @@ export function AuctionPage() {
     setLoading(true);
     try {
       console.log('🎯 Seleccionando item:', { itemId: item.id, usuarioId: usuario.id });
-      await selectItem(item.id, usuario.id);
+      await selectItem(item.id);
       setSearchTerm('');
       setShowDropdown(false);
     } catch (error) {
