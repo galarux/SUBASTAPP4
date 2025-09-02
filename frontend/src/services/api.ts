@@ -1,6 +1,7 @@
 import type { Usuario, Item, Puja } from '../context/AuctionContext';
+import { config } from '../config/config';
 
-const API_BASE_URL = 'http://192.168.18.124:3001';
+const API_BASE_URL = config.API_BASE_URL;
 
 // Tipos para las respuestas de la API
 interface ApiResponse<T> {

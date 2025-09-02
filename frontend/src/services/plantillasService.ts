@@ -1,6 +1,7 @@
 import type { PlantillaUsuario } from '../context/AuctionContext';
+import { config } from '../config/config';
 
-const API_BASE_URL = 'http://192.168.18.124:3001';
+const API_BASE_URL = config.API_BASE_URL;
 
 // Cliente HTTP básico
 async function apiRequest<T>(

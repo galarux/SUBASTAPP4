@@ -3,8 +3,9 @@ import { io, Socket } from 'socket.io-client';
 import { useAuction } from '../context/AuctionContext';
 import type { Puja, Item } from '../context/AuctionContext';
 import { plantillasService } from '../services/plantillasService';
+import { config } from '../config/config';
 
-const SOCKET_URL = 'http://192.168.18.124:3001';
+const SOCKET_URL = config.SOCKET_URL;
 
 // Singleton para la conexión Socket.IO
 let socketInstance: Socket | null = null;

@@ -24,7 +24,7 @@ const app = express();
 const server = createServer(app);
 export const io = new Server(server, {
   cors: {
-    origin: ["http://localhost:5173", "http://192.168.18.124:5173", "http://127.0.0.1:5173"],
+    origin: ["http://localhost:5173", "http://192.168.1.20:5173", "http://127.0.0.1:5173"],
     methods: ["GET", "POST"]
   }
 });
@@ -33,7 +33,7 @@ const prisma = new PrismaClient();
 
 // Middleware
 app.use(cors({
-  origin: ["http://localhost:5173", "http://192.168.18.124:5173", "http://127.0.0.1:5173"],
+  origin: ["http://localhost:5173", "http://192.168.1.20:5173", "http://127.0.0.1:5173"],
   credentials: true
 }));
 app.use(express.json());
@@ -80,7 +80,7 @@ const PORT = parseInt(process.env.PORT || '3001');
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Servidor corriendo en puerto ${PORT}`);
   console.log(`🌐 Accesible en: http://0.0.0.0:${PORT}`);
-  console.log(`📱 Frontend: ${process.env.CORS_ORIGIN || "http://192.168.18.124:5173"}`);
+  console.log(`📱 Frontend: ${process.env.CORS_ORIGIN || "http://192.168.1.20:5173"}`);
   console.log(`🔌 Socket.IO: Habilitado`);
 });
 
