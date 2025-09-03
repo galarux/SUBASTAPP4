@@ -1,0 +1,67 @@
+# Ignorar todo el frontend
+frontend/
+frontend-*
+
+# Ignorar dependencias del frontend
+node_modules/
+package-lock.json
+
+# Ignorar archivos de desarrollo
+*.log
+.env
+.env.local
+.env.production
+.DS_Store
+Thumbs.db
+
+# Ignorar archivos de build del frontend
+dist/
+build/
+.next/
+out/
+
+# Ignorar archivos de configuración del frontend
+vite.config.ts
+tailwind.config.js
+postcss.config.js
+eslint.config.js
+
+# Ignorar archivos de TypeScript del frontend
+tsconfig.app.json
+tsconfig.node.json
+
+# Ignorar scripts de build del frontend
+build-*.cjs
+azure-build-config.cjs
+build-azure.cjs
+build-vite-azure.cjs
+build-manual.cjs
+
+# Ignorar archivos de desarrollo del frontend
+*.css
+*.scss
+*.sass
+*.less
+
+# Ignorar archivos de assets del frontend
+assets/
+img/
+public/
+
+# Ignorar archivos de testing
+coverage/
+.nyc_output/
+test/
+tests/
+__tests__/
+
+# Ignorar archivos de IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Ignorar archivos temporales
+tmp/
+temp/
+.cache/
