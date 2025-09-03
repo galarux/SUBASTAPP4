@@ -4,6 +4,7 @@ import { Server } from 'socket.io';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import { PrismaClient } from '@prisma/client';
+import './config/azure-config';
 
 // Importar rutas
 import authRoutes from './routes/authRoutes';
