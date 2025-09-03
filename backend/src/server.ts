@@ -25,7 +25,34 @@ dotenv.config();
 
 const app = express();
 const server = createServer(app);
-const corsOrigin = process.env.CORS_ORIGIN || "http://localhost:5173";
+
+// Función para detectar si estamos en Azure
+const isAzureEnvironment = (): boolean => {
+  return process.env.WEBSITE_SITE_NAME !== undefined ||
+         process.env.AZURE_WEBAPP_NAME !== undefined ||
+         process.env.WEBSITE_INSTANCE_ID !== undefined;
+};
+
+// Función para obtener el origen CORS correcto
+const getCorsOrigin = (): string => {
+  // Si hay una variable de entorno específica, usarla
+  if (process.env.CORS_ORIGIN) {
+    return process.env.CORS_ORIGIN;
+  }
+  
+  // Si estamos en Azure, usar la URL de Azure
+  if (isAzureEnvironment()) {
+    // En Azure, el frontend y backend están en la misma URL
+    return process.env.WEBSITE_HOSTNAME ? 
+           `https://${process.env.WEBSITE_HOSTNAME}` : 
+           'https://subastapp-hjhmg6cxc5edg9av.spaincentral-01.azurewebsites.net';
+  }
+  
+  // En desarrollo local, usar localhost
+  return "http://localhost:5173";
+};
+
+const corsOrigin = getCorsOrigin();
 
 export const io = new Server(server, {
   cors: {
@@ -107,7 +134,8 @@ const PORT = parseInt(process.env.PORT || '3001');
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Servidor corriendo en puerto ${PORT}`);
   console.log(`🌐 Accesible en: http://0.0.0.0:${PORT}`);
-  console.log(`📱 Frontend: ${process.env.CORS_ORIGIN || "http://192.168.1.20:5173"}`);
+  console.log(`🔧 Entorno: ${isAzureEnvironment() ? 'Azure' : 'Local'}`);
+  console.log(`📱 CORS Origin: ${corsOrigin}`);
   console.log(`🔌 Socket.IO: Habilitado`);
 });
 

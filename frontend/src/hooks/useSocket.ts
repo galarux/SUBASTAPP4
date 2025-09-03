@@ -3,9 +3,7 @@ import { io, Socket } from 'socket.io-client';
 import { useAuction } from '../context/AuctionContext';
 import type { Puja, Item } from '../context/AuctionContext';
 import { plantillasService } from '../services/plantillasService';
-import { config } from '../config/config';
-
-const SOCKET_URL = config.SOCKET_URL;
+import { getSocketURL } from '../config/config';
 
 // Singleton para la conexión Socket.IO
 let socketInstance: Socket | null = null;
@@ -24,6 +22,7 @@ export function useSocket() {
     // Crear conexión Socket.IO solo una vez
     if (!isInitialized) {
       console.log('🔌 Inicializando Socket.IO...');
+      const SOCKET_URL = getSocketURL(); // Obtener URL dinámicamente
       socketInstance = io(SOCKET_URL, {
         transports: ['websocket', 'polling'],
       });

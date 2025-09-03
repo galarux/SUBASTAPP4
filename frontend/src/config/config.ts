@@ -1,8 +1,8 @@
 // Configuración centralizada de la aplicación
 export const config = {
-  // URLs de la API y Socket.IO
-  API_BASE_URL: 'http://192.168.1.20:3001',
-  SOCKET_URL: 'http://192.168.1.20:3001',
+  // URLs de la API y Socket.IO (se configuran dinámicamente)
+  API_BASE_URL: '',
+  SOCKET_URL: '',
   
   // Configuración de la aplicación
   APP_NAME: 'SUBASTAPP',
@@ -19,22 +19,77 @@ export const config = {
   FRONTEND_PORT: 5173,
 };
 
-// Función para obtener la IP local automáticamente
-export const getLocalIP = async (): Promise<string> => {
-  try {
-    // Intentar obtener la IP local desde el navegador
-    const response = await fetch('https://api.ipify.org?format=json');
-    const data = await response.json();
-    return data.ip;
-  } catch (error) {
-    console.warn('No se pudo obtener la IP automáticamente, usando configuración por defecto');
-    return '192.168.1.20'; // IP por defecto
+// 🌐 IP DEL BACKEND - CAMBIAR AQUÍ FÁCILMENTE
+const BACKEND_IP = '192.168.10.116';
+
+// Función para detectar si estamos en Azure
+export const isAzureEnvironment = (): boolean => {
+  if (typeof window !== 'undefined') {
+    return window.location.hostname.includes('azurewebsites.net') ||
+           window.location.hostname.includes('azure.com');
+  }
+  return false;
+};
+
+// Función para obtener la URL base según el entorno
+export const getBaseURL = (): string => {
+  // Si hay variables de entorno de Vite, usarlas (producción)
+  if (import.meta.env.VITE_API_BASE_URL) {
+    return import.meta.env.VITE_API_BASE_URL;
+  }
+  
+  if (isAzureEnvironment()) {
+    // En Azure, usar la URL actual (misma URL para frontend y backend)
+    return window.location.origin;
+  } else {
+    // En desarrollo local, usar la IP configurada
+    return `http://${BACKEND_IP}:${config.BACKEND_PORT}`;
   }
 };
 
-// Función para actualizar las URLs dinámicamente
-export const updateURLs = (newIP: string) => {
-  config.API_BASE_URL = `http://${newIP}:${config.BACKEND_PORT}`;
-  config.SOCKET_URL = `http://${newIP}:${config.BACKEND_PORT}`;
-  console.log(`URLs actualizadas a: ${newIP}`);
+// Función para inicializar las URLs
+export const initializeURLs = (): void => {
+  const baseURL = getBaseURL();
+  config.API_BASE_URL = baseURL;
+  config.SOCKET_URL = baseURL;
+  
+  console.log('🔧 URLs configuradas:', {
+    environment: isAzureEnvironment() ? 'Azure' : 'Local',
+    backendIP: BACKEND_IP,
+    baseURL,
+    API_BASE_URL: config.API_BASE_URL,
+    SOCKET_URL: config.SOCKET_URL,
+    viteEnv: {
+      VITE_APP_ENV: import.meta.env.VITE_APP_ENV,
+      VITE_API_BASE_URL: import.meta.env.VITE_API_BASE_URL,
+      VITE_SOCKET_URL: import.meta.env.VITE_SOCKET_URL
+    }
+  });
 };
+
+// Función para obtener la URL de la API (para servicios)
+export const getAPIBaseURL = (): string => {
+  // Si ya está configurada, usarla
+  if (config.API_BASE_URL) {
+    return config.API_BASE_URL;
+  }
+  
+  // Si no, calcularla inmediatamente
+  return getBaseURL();
+};
+
+// Función para obtener la URL del Socket (para hooks)
+export const getSocketURL = (): string => {
+  // Si ya está configurada, usarla
+  if (config.SOCKET_URL) {
+    return config.SOCKET_URL;
+  }
+  
+  // Si no, calcularla inmediatamente
+  return getBaseURL();
+};
+
+// Inicializar URLs automáticamente
+if (typeof window !== 'undefined') {
+  initializeURLs();
+}

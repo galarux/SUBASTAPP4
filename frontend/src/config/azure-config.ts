@@ -70,6 +70,19 @@ export const isAzureEnvironment = () => {
   return false;
 };
 
+// Función para obtener la URL base de Azure
+export const getAzureBaseURL = (): string => {
+  if (typeof window !== 'undefined') {
+    // En el navegador, usar la URL actual
+    return window.location.origin;
+  }
+  
+  // En el servidor, usar la variable de entorno o la URL por defecto
+  return process.env.WEBSITE_HOSTNAME ? 
+         `https://${process.env.WEBSITE_HOSTNAME}` : 
+         'https://subastapp-hjhmg6cxc5edg9av.spaincentral-01.azurewebsites.net';
+};
+
 // Ejecutar configuración automáticamente
 if (typeof window !== 'undefined') {
   // En el navegador, ejecutar cuando se carga la página

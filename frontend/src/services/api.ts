@@ -1,7 +1,5 @@
 import type { Usuario, Item, Puja } from '../context/AuctionContext';
-import { config } from '../config/config';
-
-const API_BASE_URL = config.API_BASE_URL;
+import { getAPIBaseURL } from '../config/config';
 
 // Tipos para las respuestas de la API
 interface ApiResponse<T> {
@@ -16,6 +14,7 @@ async function apiRequest<T>(
   options: RequestInit = {}
 ): Promise<ApiResponse<T>> {
   try {
+    const API_BASE_URL = getAPIBaseURL(); // Obtener URL dinámicamente
     const response = await fetch(`${API_BASE_URL}${endpoint}`, {
       headers: {
         'Content-Type': 'application/json',

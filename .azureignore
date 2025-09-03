@@ -1,12 +1,4 @@
-# Ignorar todo el frontend
-frontend/
-frontend-*
-
-# Ignorar dependencias del frontend
-node_modules/
-package-lock.json
-
-# Ignorar archivos de desarrollo
+# Archivos de desarrollo y temporales
 *.log
 .env
 .env.local
@@ -14,54 +6,49 @@ package-lock.json
 .DS_Store
 Thumbs.db
 
-# Ignorar archivos de build del frontend
-dist/
-build/
-.next/
-out/
+# Dependencias de desarrollo (se instalarán en Azure)
+node_modules/
+package-lock.json
 
-# Ignorar archivos de configuración del frontend
-vite.config.ts
-tailwind.config.js
-postcss.config.js
-eslint.config.js
-
-# Ignorar archivos de TypeScript del frontend
-tsconfig.app.json
-tsconfig.node.json
-
-# Ignorar scripts de build del frontend
-build-*.cjs
-azure-build-config.cjs
-build-azure.cjs
-build-vite-azure.cjs
-build-manual.cjs
-
-# Ignorar archivos de desarrollo del frontend
-*.css
-*.scss
-*.sass
-*.less
-
-# Ignorar archivos de assets del frontend
-assets/
-img/
-public/
-
-# Ignorar archivos de testing
+# Archivos de testing
 coverage/
 .nyc_output/
 test/
 tests/
 __tests__/
 
-# Ignorar archivos de IDE
+# Archivos de IDE
 .vscode/
 .idea/
 *.swp
 *.swo
 
-# Ignorar archivos temporales
+# Archivos temporales
 tmp/
 temp/
 .cache/
+
+# Archivos de Git
+.git/
+.gitignore
+
+# Archivos de documentación
+*.md
+README.md
+SUBASTAPP.md
+azure-environment.md
+IP-TROUBLESHOOTING.md
+
+# Scripts de desarrollo local
+*.bat
+*.ps1
+start-*.bat
+stop-*.bat
+reset-*.bat
+db-*.bat
+fix-*.ps1
+update-*.ps1
+
+# Archivos de configuración local
+fix-ip.ps1
+update-ip.ps1

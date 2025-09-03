@@ -8,6 +8,7 @@
     "build:strict": "tsc -p tsconfig.prod.json",
     "build:check": "tsc --noEmit",
     "start": "node dist/server.js",
+    "postinstall": "node azure-post-install.js",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate dev",
