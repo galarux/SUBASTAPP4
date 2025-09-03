@@ -12,6 +12,7 @@
     "build:clean": "rm -rf node_modules package-lock.json && npm install --platform=linux --arch=x64 && tsc -b && vite build",
     "build:standard": "tsc -b && vite build",
     "build:vite-azure": "node build-vite-azure.cjs",
+    "build:manual": "node build-manual.cjs",
     "lint": "eslint .",
     "preview": "vite preview"
   },
