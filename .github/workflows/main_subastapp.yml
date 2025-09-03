@@ -31,11 +31,15 @@ jobs:
         run: npm run build
         working-directory: backend
 
+      - name: Create backend deployment package (zip)
+        run: zip -r backend.zip .
+        working-directory: backend
+
       - name: Upload backend artifact for deployment job
         uses: actions/upload-artifact@v4
         with:
-          name: backend-app
-          path: backend
+          name: backend-package
+          path: backend/backend.zip
 
   deploy:
     runs-on: ubuntu-latest
@@ -44,7 +48,7 @@ jobs:
       - name: Download backend artifact from build job
         uses: actions/download-artifact@v4
         with:
-          name: backend-app
+          name: backend-package
 
       - name: 'Deploy backend to Azure Web App'
         id: deploy-to-webapp
@@ -52,5 +56,5 @@ jobs:
         with:
           app-name: 'subastapp'
           slot-name: 'Production'
-          package: backend
+          package: backend.zip
           publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_7BB1C1B0A39644B29491BE28793FB2F2 }}
