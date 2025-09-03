@@ -69,10 +69,16 @@ async function main() {
   
   console.log('✅ Verificación de tipos exitosa');
   
-  // Build de producción
+  // Build de producción con variables de entorno para evitar Rollup nativo
   console.log('🏗️ Construyendo aplicación...');
-  if (!runCommand('node build-manual.cjs')) {
-    console.error('❌ Error en el build manual');
+  const buildEnv = {
+    ...process.env,
+    ROLLUP_NATIVE: 'false',
+    VITE_LEGACY_PEER_DEPS: 'true'
+  };
+  
+  if (!runCommand('npx vite build', { env: buildEnv })) {
+    console.error('❌ Error en el build de Vite');
     process.exit(1);
   }
   

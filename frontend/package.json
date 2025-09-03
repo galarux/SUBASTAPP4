@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "node build-azure.cjs",
-    "build:azure": "rm -rf node_modules package-lock.json && npm install --platform=linux --arch=x64 --legacy-peer-deps && tsc -b && VITE_LEGACY_PEER_DEPS=true vite build",
+    "build:azure": "node build-azure.cjs",
     "build:check": "tsc -b --noEmit",
     "build:force": "npm install --platform=linux --arch=x64 && tsc -b && vite build",
     "build:clean": "rm -rf node_modules package-lock.json && npm install --platform=linux --arch=x64 && tsc -b && vite build",
