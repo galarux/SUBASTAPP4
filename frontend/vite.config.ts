@@ -44,5 +44,13 @@ export default defineConfig({
     mainFields: ['module', 'main'],
     // Evitar problemas de extensión
     extensions: ['.mjs', '.js', '.ts', '.jsx', '.tsx', '.json']
+  },
+  // Forzar Vite a usar Rollup en JavaScript puro
+  define: {
+    'process.env.ROLLUP_NATIVE': 'false'
+  },
+  // Configuración específica para evitar módulos nativos
+  ssr: {
+    noExternal: ['rollup']
   }
 })
