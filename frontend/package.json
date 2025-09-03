@@ -5,11 +5,12 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "node build-azure.js",
     "build:azure": "tsc -b && VITE_LEGACY_PEER_DEPS=true vite build",
     "build:check": "tsc -b --noEmit",
     "build:force": "npm install --platform=linux --arch=x64 && tsc -b && vite build",
     "build:clean": "rm -rf node_modules package-lock.json && npm install --platform=linux --arch=x64 && tsc -b && vite build",
+    "build:standard": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview"
   },
