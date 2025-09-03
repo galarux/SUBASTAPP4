@@ -11,7 +11,7 @@
     "build:force": "npm install --platform=linux --arch=x64 && tsc -b && vite build",
     "build:clean": "rm -rf node_modules package-lock.json && npm install --platform=linux --arch=x64 && tsc -b && vite build",
     "build:standard": "tsc -b && vite build",
-    "build:vite-azure": "node build-vite-azure.js",
+    "build:vite-azure": "node build-vite-azure.cjs",
     "lint": "eslint .",
     "preview": "vite preview"
   },

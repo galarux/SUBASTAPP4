@@ -71,7 +71,7 @@ async function main() {
   
   // Build de producción
   console.log('🏗️ Construyendo aplicación...');
-  if (!runCommand('node build-vite-azure.js')) {
+  if (!runCommand('node build-vite-azure.cjs')) {
     console.error('❌ Error en el build alternativo');
     process.exit(1);
   }
