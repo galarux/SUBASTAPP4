@@ -56,7 +56,7 @@ import('./scripts/cleanupData').then(() => {
   console.error('❌ Error al ejecutar script de limpieza:', error);
 });
 
-// Rutas de la API
+// Rutas de la API (PRIMERO - antes del frontend)
 app.use('/api/auth', authRoutes);
 app.use('/api/items', itemsRoutes);
 app.use('/api/pujas', pujasRoutes);
@@ -64,13 +64,17 @@ app.use('/api/salidas', salidasRoutes);
 app.use('/api/config', configRoutes);
 app.use('/api/plantillas', plantillasRoutes);
 
-// Servir archivos estáticos del frontend
+// Servir archivos estáticos del frontend (DESPUÉS de las rutas de la API)
 const frontendPath = path.join(__dirname, '../frontend/dist');
 if (fs.existsSync(frontendPath)) {
   console.log('📁 Sirviendo frontend desde:', frontendPath);
   app.use(express.static(frontendPath));
-  
-  // Ruta para la SPA - todas las rutas del frontend van a index.html
+} else {
+  console.log('⚠️  Frontend no encontrado en:', frontendPath);
+}
+
+// Ruta catch-all para SPA (AL FINAL - después de todo lo demás)
+if (fs.existsSync(frontendPath)) {
   app.get('*', (req, res) => {
     // Si es una ruta de la API, no interferir
     if (req.path.startsWith('/api/')) {
@@ -81,8 +85,6 @@ if (fs.existsSync(frontendPath)) {
     res.sendFile(path.join(frontendPath, 'index.html'));
   });
 } else {
-  console.log('⚠️  Frontend no encontrado en:', frontendPath);
-  
   // Ruta de prueba si no hay frontend
   app.get('/', (req, res) => {
     res.json({ 
