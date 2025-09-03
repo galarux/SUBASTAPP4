@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 // Importar configuración de Azure
-require('./azure-build-config');
+require('./azure-build-config.cjs');
 
 const { execSync } = require('child_process');
 const fs = require('fs');
