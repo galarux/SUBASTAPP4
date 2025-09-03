@@ -41,20 +41,24 @@ jobs:
         run: npm run build
         working-directory: backend
 
-      # Crear paquete unificado
+      # Crear paquete unificado con estructura correcta
       - name: Create unified deployment package
         run: |
           # Crear directorio temporal para el paquete
           mkdir -p deploy-package
           
-          # Copiar backend construido
-          cp -r backend/dist/* deploy-package/
-          cp -r backend/prisma deploy-package/
+          # Copiar archivos de configuración del backend a la raíz
           cp backend/package.json deploy-package/
           cp backend/package-lock.json deploy-package/
           cp backend/azure-post-install.js deploy-package/
           cp backend/azure-startup.js deploy-package/
           cp backend/web.config deploy-package/
+          
+          # Copiar backend construido a la raíz (como espera azure-startup.js)
+          cp -r backend/dist/* deploy-package/
+          
+          # Copiar prisma a la raíz
+          cp -r backend/prisma deploy-package/
           
           # Copiar frontend construido
           mkdir -p deploy-package/frontend
