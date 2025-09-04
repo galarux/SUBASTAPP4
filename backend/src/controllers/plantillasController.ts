@@ -14,7 +14,7 @@ export const getPlantillas = async (req: Request, res: Response) => {
     const itemsSubastados = await prisma.item.findMany({
       where: {
         subastado: true,
-        ganadorId: { not: null }
+        ganadorId: { isSet: true }
       },
       include: {
         ganador: {

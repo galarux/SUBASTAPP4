@@ -25,7 +25,7 @@ async function cleanupData() {
     const itemsSubastados = await prisma.item.findMany({
       where: { 
         subastado: true, 
-        ganadorId: { not: null } 
+        ganadorId: { isSet: true } 
       }
     });
     
