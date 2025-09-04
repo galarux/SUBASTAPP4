@@ -102,7 +102,7 @@ if (fs.existsSync(frontendPath)) {
 
 // Ruta catch-all para SPA (AL FINAL - después de todo lo demás)
 if (fs.existsSync(frontendPath)) {
-  app.get('*', (req, res) => {
+  app.get('/*', (req, res) => {
     // Si es una ruta de la API, no interferir
     if (req.path.startsWith('/api/')) {
       return res.status(404).json({ error: 'API endpoint no encontrado' });
