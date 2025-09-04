@@ -10,7 +10,7 @@ import {
 const router = express.Router();
 
 // Obtener una configuración específica
-router.get('/:clave', getConfig);
+router.get('/:key', getConfig);
 
 // Obtener todas las configuraciones
 router.get('/', getAllConfigs);

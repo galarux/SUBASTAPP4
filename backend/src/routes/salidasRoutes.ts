@@ -10,6 +10,6 @@ router.post('/salir', salidasController.salirDePuja);
 router.get('/', salidasController.getUsuariosSalidos);
 
 // Verificar si un usuario ha salido de la puja
-router.get('/:usuarioId/verificar', salidasController.verificarSalida);
+router.get('/:id/verificar', salidasController.verificarSalida);
 
 export default router;
